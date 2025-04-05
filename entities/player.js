@@ -1,0 +1,558 @@
+// No longer using the Projectile class directly
+import {
+    MIN_BREATH_RANGE,
+    MAX_BREATH_RANGE,
+    BREATH_INCREASE_PER_FOOD,
+    JUMP_COOLDOWN,
+    RUN_DURATION,
+    RUN_COOLDOWN,
+    PLAYER_SPEED,
+    PLAYER_RUN_SPEED,
+    PLAYER_MAX_HEALTH,
+    FART_THRESHOLD,
+    FART_DURATION
+} from '../utils/constants.js';
+
+class Player {
+    constructor(scene, audioSystem) {
+        this.scene = scene;
+        this.audioSystem = audioSystem;
+
+        // Create player mesh
+        this.mesh = BABYLON.MeshBuilder.CreateBox("player", {height: 2, width: 1, depth: 1}, scene);
+        this.mesh.material = new BABYLON.StandardMaterial("playerMat", scene);
+        this.mesh.material.diffuseColor = new BABYLON.Color3(1, 0, 0);
+        this.mesh.position.y = 1;
+
+        // Create a direction indicator (nose) to show which way the player is facing
+        this.directionIndicator = BABYLON.MeshBuilder.CreateBox("playerNose", {height: 0.5, width: 0.5, depth: 0.7}, scene);
+        this.directionIndicator.material = new BABYLON.StandardMaterial("nosemat", scene);
+        this.directionIndicator.material.diffuseColor = new BABYLON.Color3(0, 0, 0); // Black nose
+        this.directionIndicator.parent = this.mesh; // Attach to player
+        this.directionIndicator.position = new BABYLON.Vector3(0, 0, 0.85); // Position in front
+
+        // Movement properties
+        this.speed = PLAYER_SPEED;
+        this.baseSpeed = PLAYER_SPEED;
+        this.runSpeed = PLAYER_RUN_SPEED;
+        this.isRunning = false;
+        this.runTimeLeft = RUN_DURATION;
+        this.runCooldown = 0;
+
+        // Jump properties
+        this.canJump = true;
+        this.jumpCooldown = 0;
+
+        // Health properties
+        this.health = PLAYER_MAX_HEALTH;
+        this.maxHealth = PLAYER_MAX_HEALTH;
+        console.log("Player initialized with health:", this.health);
+
+        // Breath attack properties
+        this.breathRange = MIN_BREATH_RANGE;
+        this.facingDirection = new BABYLON.Vector3(0, 0, -1);
+        this.lastMoveDirection = new BABYLON.Vector3(0, 0, -1);
+        this.activeBreathAttacks = [];
+        this._usingMouseAim = false; // Flag to track if we're using mouse for aiming
+        this._lastAttackTime = 0; // Track last attack time for rate limiting
+
+        // Food and fart properties
+        this.collectedFoods = [];
+        this.consumedFoods = 0;
+        this.inFartMode = false;
+        this.fartTimeLeft = 0;
+        this.fartCloud = null;
+
+        // Create a particle system for the fart cloud
+        this.createFartParticleSystem();
+    }
+
+    createFartParticleSystem() {
+        // Create a particle system for the fart cloud
+        this.fartParticleSystem = new BABYLON.ParticleSystem("fartParticles", 2000, this.scene);
+        this.fartParticleSystem.particleTexture = new BABYLON.Texture("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", this.scene);
+
+        // Set particle system properties
+        this.fartParticleSystem.minEmitBox = new BABYLON.Vector3(-0.5, 0, -0.5);
+        this.fartParticleSystem.maxEmitBox = new BABYLON.Vector3(0.5, 0, 0.5);
+        this.fartParticleSystem.color1 = new BABYLON.Color4(0.2, 0.5, 0.1, 1.0);
+        this.fartParticleSystem.color2 = new BABYLON.Color4(0.4, 0.6, 0.2, 1.0);
+        this.fartParticleSystem.colorDead = new BABYLON.Color4(0, 0, 0, 0.0);
+        this.fartParticleSystem.minSize = 0.1;
+        this.fartParticleSystem.maxSize = 0.5;
+        this.fartParticleSystem.minLifeTime = 0.3;
+        this.fartParticleSystem.maxLifeTime = 1.5;
+        this.fartParticleSystem.emitRate = 500;
+        this.fartParticleSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+        this.fartParticleSystem.gravity = new BABYLON.Vector3(0, 0.1, 0);
+        this.fartParticleSystem.direction1 = new BABYLON.Vector3(-1, 0.5, -1);
+        this.fartParticleSystem.direction2 = new BABYLON.Vector3(1, 0.5, 1);
+        this.fartParticleSystem.minAngularSpeed = 0;
+        this.fartParticleSystem.maxAngularSpeed = Math.PI;
+        this.fartParticleSystem.minEmitPower = 0.5;
+        this.fartParticleSystem.maxEmitPower = 1.5;
+        this.fartParticleSystem.updateSpeed = 0.01;
+
+        // Attach the particle system to the player mesh
+        this.fartParticleSystem.emitter = this.mesh;
+
+        // Stop the particle system initially
+        this.fartParticleSystem.stop();
+    }
+
+    move(direction) {
+        // Update facing direction if moving
+        if (direction.length() > 0) {
+            // Store the last movement direction for jump functionality
+            this.lastMoveDirection = direction.normalize().clone();
+
+            // Also update facing direction if we're not using mouse to aim
+            if (!this._usingMouseAim) {
+                this.facingDirection = this.lastMoveDirection.clone();
+
+                // Rotate the player mesh to face the movement direction
+                const angle = Math.atan2(direction.x, direction.z);
+                this.mesh.rotation.y = angle;
+            }
+
+            // Apply current speed to movement
+            const scaledDirection = direction.scale(this.speed);
+            this.mesh.position.addInPlace(scaledDirection);
+
+            console.log("Player moved. Position:", this.mesh.position.toString());
+        }
+    }
+
+    setFacingDirection(direction) {
+        if (direction.length() > 0) {
+            this.facingDirection = direction.normalize().clone();
+            this._usingMouseAim = true; // Flag that we're using mouse aim
+
+            // Rotate the player mesh to face the direction
+            const angle = Math.atan2(direction.x, direction.z);
+            this.mesh.rotation.y = angle;
+
+            console.log("Facing direction set to:", this.facingDirection.toString(), "Angle:", angle);
+        }
+    }
+
+    jump() {
+        if (this.canJump) {
+            // Get the current movement direction or use facing direction if not moving
+            let jumpDirection;
+
+            // Use the last movement direction if available, otherwise use facing direction
+            if (this.lastMoveDirection && this.lastMoveDirection.length() > 0) {
+                jumpDirection = this.lastMoveDirection.clone();
+                console.log("Jumping in movement direction:", jumpDirection.toString());
+            } else {
+                jumpDirection = this.facingDirection.clone();
+                console.log("Jumping in facing direction:", jumpDirection.toString());
+            }
+
+            // Set jump distance
+            const jumpDistance = 5; // Increased jump distance
+
+            // Scale the direction by the jump distance
+            jumpDirection = jumpDirection.normalize().scale(jumpDistance);
+
+            // Move the player in the jump direction
+            this.mesh.position.addInPlace(jumpDirection);
+            console.log("Jumped to position:", this.mesh.position.toString());
+
+            // Play jump sound
+            if (this.audioSystem) {
+                this.audioSystem.playJumpSound();
+            }
+
+            // Set cooldown
+            this.canJump = false;
+            this.jumpCooldown = JUMP_COOLDOWN;
+        } else {
+            console.log("Cannot jump - on cooldown:", this.jumpCooldown);
+        }
+    }
+
+    run() {
+        if (!this.isRunning && this.runCooldown <= 0) {
+            // Start running
+            this.isRunning = true;
+            this.speed = this.runSpeed;
+            this.runTimeLeft = RUN_DURATION;
+        }
+    }
+
+    attack() {
+        // Rate limit attacks to prevent too many projectiles
+        const now = Date.now();
+        const attackCooldown = 300; // 300ms between attacks
+
+        if (now - this._lastAttackTime < attackCooldown) {
+            return; // Skip if attacking too frequently
+        }
+
+        this._lastAttackTime = now;
+
+        // Create a breath attack projectile
+        if (!this.inFartMode) {
+            // Create a breath projectile in the facing direction
+            const origin = this.mesh.position.clone();
+            origin.y += 0.5; // Adjust to come from the "mouth" level
+
+            // Make sure we have a valid facing direction
+            if (!this.facingDirection || this.facingDirection.length() === 0) {
+                this.facingDirection = new BABYLON.Vector3(0, 0, -1); // Default direction
+            }
+
+            console.log("Creating breath attack in direction:", this.facingDirection.toString());
+
+            try {
+                // Create an invisible sphere as the base for our particle system
+                const projectileMesh = BABYLON.MeshBuilder.CreateSphere("breathProjectile", {
+                    diameter: 1.0
+                }, this.scene);
+
+                // Make the mesh invisible - we'll only see the particles
+                projectileMesh.isVisible = false;
+
+                // Position it at the player's position
+                projectileMesh.position = origin.clone();
+
+                // Create a chunky, cloudy particle system for the breath attack
+                const particleSystem = new BABYLON.ParticleSystem("breathParticles", 500, this.scene);
+
+                // Create a cloudy texture for particles
+                particleSystem.particleTexture = new BABYLON.Texture("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", this.scene);
+
+                // Set up the emitter to be the projectile mesh
+                particleSystem.emitter = projectileMesh;
+
+                // Make particles emit in a cone shape in the direction the player is facing
+                const emitCone = 0.5; // Width of the emission cone
+                particleSystem.minEmitBox = new BABYLON.Vector3(-emitCone, -emitCone, -0.1);
+                particleSystem.maxEmitBox = new BABYLON.Vector3(emitCone, emitCone, 0.1);
+
+                // Set particle colors - light blue/white for breath
+                particleSystem.color1 = new BABYLON.Color4(0.7, 0.8, 1.0, 0.8); // Light blue
+                particleSystem.color2 = new BABYLON.Color4(0.9, 0.9, 1.0, 0.8); // Almost white
+                particleSystem.colorDead = new BABYLON.Color4(0.5, 0.5, 0.8, 0.0); // Fade to transparent
+
+                // Make particles chunky and varied in size
+                particleSystem.minSize = 0.3;
+                particleSystem.maxSize = 1.2;
+
+                // Make particles last longer for a more persistent cloud
+                particleSystem.minLifeTime = 0.3;
+                particleSystem.maxLifeTime = 0.8;
+
+                // Emit lots of particles for a dense cloud
+                particleSystem.emitRate = 300;
+
+                // Set particle behavior
+                particleSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD; // Additive blending for glow effect
+
+                // Make particles move in the direction the player is facing
+                const directionVector = this.facingDirection.clone();
+
+                // Add some spread to the particles
+                particleSystem.direction1 = new BABYLON.Vector3(
+                    directionVector.x - 0.5,
+                    directionVector.y - 0.5,
+                    directionVector.z - 0.5
+                );
+                particleSystem.direction2 = new BABYLON.Vector3(
+                    directionVector.x + 0.5,
+                    directionVector.y + 0.5,
+                    directionVector.z + 0.5
+                );
+
+                // Set emission power (speed)
+                particleSystem.minEmitPower = 1.5;
+                particleSystem.maxEmitPower = 3.5;
+
+                // Add some gravity to make particles rise slightly
+                particleSystem.gravity = new BABYLON.Vector3(0, 0.1, 0);
+
+                // Add some angular velocity for swirling effect
+                particleSystem.minAngularSpeed = -2.0;
+                particleSystem.maxAngularSpeed = 2.0;
+
+                // Update faster for smoother animation
+                particleSystem.updateSpeed = 0.01;
+
+                // Start the particle system
+                particleSystem.start();
+
+                // Create a simple projectile object
+                const projectile = {
+                    mesh: projectileMesh,
+                    particleSystem: particleSystem,
+                    direction: this.facingDirection.clone(),
+                    speed: 0.8, // Even faster speed for better visibility
+                    distance: 0,
+                    range: this.breathRange,
+                    isDisposed: false,
+                    move: function() {
+                        if (this.isDisposed) return;
+
+                        // Move the projectile in the direction it's facing
+                        this.mesh.position.addInPlace(this.direction.scale(this.speed));
+                        this.distance += this.speed;
+
+                        // Scale the particle system as it travels to create a spreading cloud effect
+                        const travelProgress = this.distance / this.range;
+
+                        // Calculate spread factor for the cloud as it travels
+                        const spread = 0.5 + travelProgress * 1.5; // Starts at 0.5, grows to 2.0
+
+                        if (this.particleSystem) {
+                            // Update emission box to create spreading effect
+                            this.particleSystem.minEmitBox = new BABYLON.Vector3(-spread, -spread, -spread/2);
+                            this.particleSystem.maxEmitBox = new BABYLON.Vector3(spread, spread, spread/2);
+
+                            // Increase particle size as it travels
+                            this.particleSystem.minSize = 0.3 + travelProgress * 0.7; // 0.3 to 1.0
+                            this.particleSystem.maxSize = 1.2 + travelProgress * 1.3; // 1.2 to 2.5
+
+                            // Slow down particles as they travel
+                            this.particleSystem.minEmitPower = Math.max(0.5, 1.5 - travelProgress);
+                            this.particleSystem.maxEmitPower = Math.max(1.0, 3.5 - travelProgress * 2);
+
+                            // Increase emission rate as it travels for denser cloud
+                            this.particleSystem.emitRate = 300 + travelProgress * 200; // 300 to 500
+                        }
+
+                        if (this.distance > this.range) {
+                            this.dispose();
+                        }
+                    },
+                    dispose: function() {
+                        if (this.isDisposed) return;
+
+                        if (this.particleSystem) {
+                            this.particleSystem.stop();
+                            this.particleSystem.dispose();
+                        }
+
+                        if (this.mesh) {
+                            this.mesh.dispose();
+                        }
+
+                        this.isDisposed = true;
+                    }
+                };
+
+                this.activeBreathAttacks.push(projectile);
+                console.log("Breath attack created. Total active:", this.activeBreathAttacks.length);
+
+                // Play breath sound
+                if (this.audioSystem) {
+                    this.audioSystem.playBreathSound();
+                }
+            } catch (error) {
+                console.error("Error creating breath attack:", error);
+            }
+        } else {
+            // In fart mode, we don't need to create projectiles as the fart cloud is always active
+            // But we can play the fart sound
+            if (this.audioSystem) {
+                this.audioSystem.playFartSound();
+            }
+        }
+    }
+
+    collectFood(foodType) {
+        this.collectedFoods.push(foodType);
+        console.log("Food collected:", foodType, "Total:", this.collectedFoods.length);
+
+        // Flash the player mesh to indicate food collection
+        this.flashFoodPickup();
+
+        // Play pickup sound
+        if (this.audioSystem) {
+            this.audioSystem.playPickupSound();
+        }
+    }
+
+    flashFoodPickup() {
+        // Flash the player mesh green to indicate food pickup
+        const originalColor = this.mesh.material.diffuseColor.clone();
+        this.mesh.material.diffuseColor = new BABYLON.Color3(0, 1, 0); // Bright green
+
+        // Return to original color after a short time
+        setTimeout(() => {
+            if (this.mesh && this.mesh.material) {
+                this.mesh.material.diffuseColor = originalColor;
+            }
+        }, 200);
+    }
+
+    consumeFood() {
+        if (this.collectedFoods.length > 0) {
+            // Consume the first food in the collection
+            const food = this.collectedFoods.shift();
+            this.consumedFoods++;
+
+            console.log("Food consumed:", food, "Total consumed:", this.consumedFoods);
+
+            // Increase breath range
+            const oldRange = this.breathRange;
+            this.breathRange = Math.min(this.breathRange + BREATH_INCREASE_PER_FOOD, MAX_BREATH_RANGE);
+            console.log("Breath range increased from", oldRange, "to", this.breathRange);
+
+            // Check if we should enter fart mode
+            if (this.consumedFoods >= FART_THRESHOLD && !this.inFartMode) {
+                this.activateFartMode();
+            }
+
+            // Flash the player mesh to indicate food consumption
+            this.flashFoodConsumption();
+
+            // Play pickup sound
+            if (this.audioSystem) {
+                this.audioSystem.playPickupSound();
+            }
+
+            return food;
+        } else {
+            console.log("No food to consume");
+        }
+        return null;
+    }
+
+    flashFoodConsumption() {
+        // Flash the player mesh yellow to indicate food consumption
+        const originalColor = this.mesh.material.diffuseColor.clone();
+        this.mesh.material.diffuseColor = new BABYLON.Color3(1, 1, 0); // Yellow
+
+        // Return to original color after a short time
+        setTimeout(() => {
+            if (this.mesh && this.mesh.material) {
+                this.mesh.material.diffuseColor = originalColor;
+            }
+        }, 300);
+    }
+
+    activateFartMode() {
+        this.inFartMode = true;
+        this.fartTimeLeft = FART_DURATION;
+
+        // Start the particle system
+        this.fartParticleSystem.start();
+
+        // Play fart sound
+        if (this.audioSystem) {
+            this.audioSystem.playFartSound();
+        }
+    }
+
+    deactivateFartMode() {
+        this.inFartMode = false;
+        this.consumedFoods = 0;
+
+        // Stop the particle system
+        this.fartParticleSystem.stop();
+    }
+
+    takeDamage() {
+        // Add a small cooldown to prevent multiple hits at once
+        if (this._lastDamageTime && Date.now() - this._lastDamageTime < 1000) {
+            return; // Skip if hit too recently (1 second cooldown)
+        }
+
+        this._lastDamageTime = Date.now();
+        this.health--;
+        console.log("Player took damage. Health now:", this.health);
+
+        // Slow down the player with each hit
+        this.baseSpeed = this.baseSpeed * 0.8;
+        this.speed = this.baseSpeed;
+
+        // Flash the player mesh to indicate damage
+        this.flashDamage();
+
+        if (this.health <= 0) {
+            console.log("Game Over!");
+            // Trigger game over logic
+        }
+    }
+
+    flashDamage() {
+        // Flash the player mesh red to indicate damage
+        const originalColor = this.mesh.material.diffuseColor.clone();
+        this.mesh.material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Bright red
+
+        // Return to original color after a short time
+        setTimeout(() => {
+            if (this.mesh && this.mesh.material) {
+                this.mesh.material.diffuseColor = originalColor;
+            }
+        }, 200);
+    }
+
+    update(deltaTime) {
+        // Update jump cooldown
+        if (!this.canJump) {
+            this.jumpCooldown -= deltaTime;
+            if (this.jumpCooldown <= 0) {
+                this.canJump = true;
+                this.jumpCooldown = 0;
+            }
+        }
+
+        // Update run duration and cooldown
+        if (this.isRunning) {
+            this.runTimeLeft -= deltaTime;
+            if (this.runTimeLeft <= 0) {
+                this.isRunning = false;
+                this.speed = this.baseSpeed;
+                this.runCooldown = RUN_COOLDOWN;
+            }
+        } else if (this.runCooldown > 0) {
+            this.runCooldown -= deltaTime;
+        }
+
+        // Update fart mode
+        if (this.inFartMode) {
+            this.fartTimeLeft -= deltaTime;
+            if (this.fartTimeLeft <= 0) {
+                this.deactivateFartMode();
+            }
+        }
+
+        // Update active breath attacks
+        for (let i = this.activeBreathAttacks.length - 1; i >= 0; i--) {
+            const attack = this.activeBreathAttacks[i];
+            attack.move();
+
+            // Remove disposed attacks
+            if (attack.isDisposed) {
+                this.activeBreathAttacks.splice(i, 1);
+            }
+        }
+    }
+
+    dispose() {
+        // Clean up resources
+        if (this.fartParticleSystem) {
+            this.fartParticleSystem.dispose();
+        }
+
+        // Dispose all active breath attacks
+        for (const attack of this.activeBreathAttacks) {
+            attack.dispose();
+        }
+
+        // Dispose the direction indicator
+        if (this.directionIndicator) {
+            this.directionIndicator.dispose();
+        }
+
+        // Dispose the mesh
+        if (this.mesh) {
+            this.mesh.dispose();
+        }
+    }
+}
+
+export { Player };

@@ -1,0 +1,16 @@
+{
+    "width": 50,
+    "height": 50,
+    "tiles": [
+        {
+            "x": 0,
+            "y": 0,
+            "type": "grass"
+        },
+        {
+            "x": 1,
+            "y": 0,
+            "type": "grass"
+        }
+    ]
+}
