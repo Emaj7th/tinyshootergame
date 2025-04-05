@@ -13,7 +13,7 @@ const PLAYER_MAX_HEALTH = 3;
 const FOOD_TYPES = ['garlic', 'onion', 'cheese', 'coffee', 'sandwich'];
 const FART_THRESHOLD = 5; // Number of foods to trigger fart mode
 const FART_DURATION = 6; // seconds
-const FART_RANGE = 3; // Area of effect
+const FART_RANGE = 5; // Area of effect - increased to approximately 1 inch square in game space
 
 // Zombie constants
 const ZOMBIE_SPEED = 0.01;

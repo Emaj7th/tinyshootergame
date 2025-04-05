@@ -10,7 +10,8 @@ import {
     PLAYER_RUN_SPEED,
     PLAYER_MAX_HEALTH,
     FART_THRESHOLD,
-    FART_DURATION
+    FART_DURATION,
+    FART_RANGE
 } from '../utils/constants.js';
 
 class Player {
@@ -68,29 +69,50 @@ class Player {
     }
 
     createFartParticleSystem() {
-        // Create a particle system for the fart cloud
-        this.fartParticleSystem = new BABYLON.ParticleSystem("fartParticles", 2000, this.scene);
+        // Create a particle system for the fart cloud - increased particles for denser cloud
+        this.fartParticleSystem = new BABYLON.ParticleSystem("fartParticles", 5000, this.scene);
         this.fartParticleSystem.particleTexture = new BABYLON.Texture("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", this.scene);
 
-        // Set particle system properties
-        this.fartParticleSystem.minEmitBox = new BABYLON.Vector3(-0.5, 0, -0.5);
-        this.fartParticleSystem.maxEmitBox = new BABYLON.Vector3(0.5, 0, 0.5);
-        this.fartParticleSystem.color1 = new BABYLON.Color4(0.2, 0.5, 0.1, 1.0);
-        this.fartParticleSystem.color2 = new BABYLON.Color4(0.4, 0.6, 0.2, 1.0);
-        this.fartParticleSystem.colorDead = new BABYLON.Color4(0, 0, 0, 0.0);
-        this.fartParticleSystem.minSize = 0.1;
-        this.fartParticleSystem.maxSize = 0.5;
-        this.fartParticleSystem.minLifeTime = 0.3;
-        this.fartParticleSystem.maxLifeTime = 1.5;
-        this.fartParticleSystem.emitRate = 500;
+        // Set particle system properties for a larger, more visible cloud
+        // Emit from behind the player (opposite to facing direction)
+        this.fartParticleSystem.minEmitBox = new BABYLON.Vector3(-1.5, 0, -1.5);
+        this.fartParticleSystem.maxEmitBox = new BABYLON.Vector3(1.5, 0, 1.5);
+
+        // Green colors for fart cloud
+        this.fartParticleSystem.color1 = new BABYLON.Color4(0.2, 0.5, 0.1, 0.8); // More transparent
+        this.fartParticleSystem.color2 = new BABYLON.Color4(0.4, 0.6, 0.2, 0.8); // More transparent
+        this.fartParticleSystem.colorDead = new BABYLON.Color4(0.1, 0.3, 0.1, 0.0); // Fade to transparent
+
+        // Larger particles for more visible cloud
+        this.fartParticleSystem.minSize = 0.5;
+        this.fartParticleSystem.maxSize = 2.0;
+
+        // Longer lifetime for more persistent cloud
+        this.fartParticleSystem.minLifeTime = 0.5;
+        this.fartParticleSystem.maxLifeTime = 2.0;
+
+        // Higher emit rate for denser cloud
+        this.fartParticleSystem.emitRate = 1000;
+
+        // Blend mode for better visual
         this.fartParticleSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
-        this.fartParticleSystem.gravity = new BABYLON.Vector3(0, 0.1, 0);
-        this.fartParticleSystem.direction1 = new BABYLON.Vector3(-1, 0.5, -1);
-        this.fartParticleSystem.direction2 = new BABYLON.Vector3(1, 0.5, 1);
-        this.fartParticleSystem.minAngularSpeed = 0;
-        this.fartParticleSystem.maxAngularSpeed = Math.PI;
-        this.fartParticleSystem.minEmitPower = 0.5;
-        this.fartParticleSystem.maxEmitPower = 1.5;
+
+        // Slight upward gravity for rising effect
+        this.fartParticleSystem.gravity = new BABYLON.Vector3(0, 0.2, 0);
+
+        // Spread in all directions for cloud effect
+        this.fartParticleSystem.direction1 = new BABYLON.Vector3(-2, 0.5, -2);
+        this.fartParticleSystem.direction2 = new BABYLON.Vector3(2, 1.5, 2);
+
+        // Add rotation for swirling effect
+        this.fartParticleSystem.minAngularSpeed = 0.5;
+        this.fartParticleSystem.maxAngularSpeed = Math.PI * 2;
+
+        // Emission power for spread
+        this.fartParticleSystem.minEmitPower = 1.0;
+        this.fartParticleSystem.maxEmitPower = 3.0;
+
+        // Faster update for smoother animation
         this.fartParticleSystem.updateSpeed = 0.01;
 
         // Attach the particle system to the player mesh
@@ -437,21 +459,86 @@ class Player {
         this.inFartMode = true;
         this.fartTimeLeft = FART_DURATION;
 
+        console.log("FART MODE ACTIVATED! Duration:", FART_DURATION, "seconds");
+
         // Start the particle system
         this.fartParticleSystem.start();
+
+        // Change player color to indicate fart mode
+        if (this.mesh && this.mesh.material) {
+            this._originalPlayerColor = this.mesh.material.diffuseColor.clone();
+            this.mesh.material.diffuseColor = new BABYLON.Color3(0.3, 0.7, 0.3); // Green tint
+            this.mesh.material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Green glow
+        }
 
         // Play fart sound
         if (this.audioSystem) {
             this.audioSystem.playFartSound();
         }
+
+        // Create a visual indicator for the fart range
+        this.createFartRangeIndicator();
+    }
+
+    createFartRangeIndicator() {
+        // Create a transparent disc to show the fart range
+        this.fartRangeIndicator = BABYLON.MeshBuilder.CreateDisc("fartRangeIndicator", {
+            radius: FART_RANGE,
+            tessellation: 64
+        }, this.scene);
+
+        // Position it at ground level
+        this.fartRangeIndicator.position = new BABYLON.Vector3(
+            this.mesh.position.x,
+            0.05, // Slightly above ground to avoid z-fighting
+            this.mesh.position.z
+        );
+
+        // Rotate it to be flat on the ground
+        this.fartRangeIndicator.rotation.x = Math.PI / 2;
+
+        // Create a semi-transparent material
+        const material = new BABYLON.StandardMaterial("fartRangeMaterial", this.scene);
+        material.diffuseColor = new BABYLON.Color3(0.3, 0.7, 0.3); // Green
+        material.alpha = 0.3; // Very transparent
+        material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Slight glow
+        this.fartRangeIndicator.material = material;
+
+        // Make it follow the player
+        this.fartRangeUpdateObserver = this.scene.onBeforeRenderObservable.add(() => {
+            if (this.fartRangeIndicator && this.mesh) {
+                this.fartRangeIndicator.position.x = this.mesh.position.x;
+                this.fartRangeIndicator.position.z = this.mesh.position.z;
+            }
+        });
     }
 
     deactivateFartMode() {
         this.inFartMode = false;
         this.consumedFoods = 0;
 
+        console.log("Fart mode deactivated");
+
         // Stop the particle system
         this.fartParticleSystem.stop();
+
+        // Restore original player color
+        if (this.mesh && this.mesh.material && this._originalPlayerColor) {
+            this.mesh.material.diffuseColor = this._originalPlayerColor;
+            this.mesh.material.emissiveColor = new BABYLON.Color3(0, 0, 0); // Remove glow
+        }
+
+        // Remove the fart range indicator
+        if (this.fartRangeIndicator) {
+            this.fartRangeIndicator.dispose();
+            this.fartRangeIndicator = null;
+        }
+
+        // Remove the update observer
+        if (this.fartRangeUpdateObserver) {
+            this.scene.onBeforeRenderObservable.remove(this.fartRangeUpdateObserver);
+            this.fartRangeUpdateObserver = null;
+        }
     }
 
     takeDamage() {
@@ -546,6 +633,16 @@ class Player {
         // Dispose the direction indicator
         if (this.directionIndicator) {
             this.directionIndicator.dispose();
+        }
+
+        // Dispose the fart range indicator
+        if (this.fartRangeIndicator) {
+            this.fartRangeIndicator.dispose();
+        }
+
+        // Remove any observers
+        if (this.fartRangeUpdateObserver) {
+            this.scene.onBeforeRenderObservable.remove(this.fartRangeUpdateObserver);
         }
 
         // Dispose the mesh

@@ -16,7 +16,12 @@ class InputSystem {
 
             // Handle E key for eating food
             if (kbInfo.event.code === "KeyE" && kbInfo.event.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
-                this.player.consumeFood();
+                const consumedFood = this.player.consumeFood();
+                if (consumedFood) {
+                    console.log(`Ate food: ${consumedFood}. New breath range: ${this.player.breathRange.toFixed(1)}`);
+                } else {
+                    console.log("No food to eat!");
+                }
             }
         });
 
@@ -24,6 +29,14 @@ class InputSystem {
         window.addEventListener("keydown", (evt) => {
             this.keys[evt.code] = true;
             console.log("Window keydown:", evt.code);
+
+            // Handle E key for eating food as a fallback
+            if (evt.code === "KeyE") {
+                const consumedFood = this.player.consumeFood();
+                if (consumedFood) {
+                    console.log(`Ate food (window event): ${consumedFood}. New breath range: ${this.player.breathRange.toFixed(1)}`);
+                }
+            }
         });
 
         window.addEventListener("keyup", (evt) => {

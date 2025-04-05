@@ -69,32 +69,60 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Add global mouse event handlers
+        // Add global mouse event handlers that directly control the player
         let isMouseDown = false;
 
-        document.addEventListener('mousedown', function(evt) {
+        // Function to handle mouse down event
+        function handleMouseDown(evt) {
             if (evt.button === 0) { // Left mouse button
                 isMouseDown = true;
                 if (gameEntities && gameEntities.player) {
                     gameEntities.player.attack();
-                    console.log("Global mouse down - attack");
+                    console.log("Mouse down - attack");
                 }
-            }
-        });
 
-        document.addEventListener('mouseup', function(evt) {
+                // Prevent default to avoid issues
+                evt.preventDefault();
+                return false;
+            }
+        }
+
+        // Function to handle mouse up event
+        function handleMouseUp(evt) {
             if (evt.button === 0) { // Left mouse button
                 isMouseDown = false;
+
+                // Prevent default
+                evt.preventDefault();
+                return false;
             }
-        });
+        }
+
+        // Add event listeners to multiple elements to ensure capture
+        document.addEventListener('mousedown', handleMouseDown, false);
+        document.addEventListener('mouseup', handleMouseUp, false);
+        canvas.addEventListener('mousedown', handleMouseDown, false);
+        canvas.addEventListener('mouseup', handleMouseUp, false);
+
+        // Also add to window as a fallback
+        window.addEventListener('mousedown', handleMouseDown, false);
+        window.addEventListener('mouseup', handleMouseUp, false);
 
         // Add a regular interval to check if mouse is down and trigger attacks
-        setInterval(function() {
+        const attackInterval = setInterval(function() {
             if (isMouseDown && gameEntities && gameEntities.player) {
                 gameEntities.player.attack();
                 console.log("Continuous attack from interval");
             }
         }, 200); // Check every 200ms
+
+        // Add a click handler as a fallback
+        canvas.addEventListener('click', function(evt) {
+            if (gameEntities && gameEntities.player) {
+                gameEntities.player.attack();
+                console.log("Click - attack");
+            }
+        }, false);
     });
 
     // Handle window resize
