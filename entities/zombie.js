@@ -33,9 +33,9 @@ class Zombie {
         this.mesh.material = new BABYLON.StandardMaterial("zombieMat", scene);
 
         if (this.isElite) {
-            // Darker color for elite zombies
-            this.mesh.material.diffuseColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Darker green for elite zombies
-            this.mesh.material.emissiveColor = new BABYLON.Color3(0.05, 0.15, 0.05); // Slight glow
+            // Red color for elite zombies
+            this.mesh.material.diffuseColor = new BABYLON.Color3(0.8, 0.1, 0.1); // Red for elite zombies
+            this.mesh.material.emissiveColor = new BABYLON.Color3(0.4, 0.05, 0.05); // Red glow
 
             // Make elite zombies slightly larger
             this.mesh.scaling = new BABYLON.Vector3(1.2, 1.2, 1.2);

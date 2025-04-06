@@ -8,6 +8,9 @@ class UISystem {
         // Flag to track if game over has been shown
         this.gameOverShown = false;
 
+        // Callback for game over
+        this.onGameOver = null;
+
         // Create UI container
         this.createUIElements();
 
@@ -43,11 +46,11 @@ class UISystem {
         this.killCounterContainer.left = "20px";
         this.scene.advancedTexture.addControl(this.killCounterContainer);
 
-        // Zombie kill counter
+        // Score counter (zombie kills)
         this.killCounterText = new BABYLON.GUI.TextBlock();
-        this.killCounterText.text = "Zombies Killed: 0";
+        this.killCounterText.text = "SCORE: 0";
         this.killCounterText.color = "white";
-        this.killCounterText.fontSize = 20;
+        this.killCounterText.fontSize = 24; // Slightly larger
         this.killCounterText.height = "30px";
         this.killCounterContainer.addControl(this.killCounterText);
     }
@@ -286,7 +289,7 @@ class UISystem {
         this.gameOverContainer.addControl(this.gameOverText);
 
         // Restart button
-        this.restartButton = BABYLON.GUI.Button.CreateSimpleButton("restartButton", "Restart");
+        this.restartButton = BABYLON.GUI.Button.CreateSimpleButton("restartButton", "Continue");
         this.restartButton.width = "200px";
         this.restartButton.height = "60px";
         this.restartButton.color = "white";
@@ -294,9 +297,11 @@ class UISystem {
         this.restartButton.fontSize = 24;
         this.restartButton.top = "100px";
         this.restartButton.onPointerUpObservable.add(() => {
-            // Reload the page to restart the game
-            console.log("Restarting game...");
-            window.location.reload();
+            // Call the game over callback to return to menu
+            console.log("Continue to menu...");
+            if (typeof this.onGameOver === 'function') {
+                this.onGameOver();
+            }
         });
         this.gameOverContainer.addControl(this.restartButton);
     }
@@ -329,7 +334,9 @@ class UISystem {
 
     updateZombieKillCounter() {
         if (this.killCounterText && this.scene.zombiesKilled !== undefined) {
-            this.killCounterText.text = `Zombies Killed: ${this.scene.zombiesKilled}`;
+            // Format score with leading zeros
+            const formattedScore = String(this.scene.zombiesKilled).padStart(4, '0');
+            this.killCounterText.text = `SCORE: ${formattedScore}`;
         }
     }
 
@@ -465,6 +472,14 @@ class UISystem {
             console.log("Showing game over screen");
             this.gameOverContainer.isVisible = true;
             this.gameOverShown = true;
+
+            // Call the game over callback if it exists
+            if (typeof this.onGameOver === 'function') {
+                // Wait a short time to show the game over screen before transitioning
+                setTimeout(() => {
+                    this.onGameOver();
+                }, 2000);
+            }
         }
     }
 

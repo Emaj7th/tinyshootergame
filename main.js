@@ -1,4 +1,5 @@
 import { createGameScene } from './scenes/gameScene.js';
+import { MenuScene } from './scenes/menuScene.js';
 
 document.addEventListener('DOMContentLoaded', function() {
     // Get the canvas element and create the engine
@@ -6,12 +7,30 @@ document.addEventListener('DOMContentLoaded', function() {
     const engine = new BABYLON.Engine(canvas, true);
 
     // Game state variables
-    let gameScene;
-    let gameEntities;
+    let gameScene = null;
+    let gameEntities = null;
+    let menuScene = null;
+    let activeScene = null;
+    let mouseHandlers = {};
+    let attackInterval = null;
 
-    async function initGame() {
-        console.log("Initializing game...");
-        console.log("Canvas dimensions:", canvas.width, "x", canvas.height);
+    // Initialize the menu scene
+    function initMenu() {
+        console.log("Initializing menu scene...");
+
+        // Create the menu scene
+        menuScene = new MenuScene(engine, canvas, startGame);
+
+        // Set as active scene
+        activeScene = menuScene.scene;
+    }
+
+    // Start a new game
+    async function startGame() {
+        console.log("Starting new game...");
+
+        // Clean up any existing game
+        cleanupGame();
 
         // Create the main scene
         const scene = new BABYLON.Scene(engine);
@@ -23,12 +42,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Set orthographic camera size based on canvas size
         const aspectRatio = canvas.width / canvas.height;
-        const orthoSize = 15; // Base size for view height
-
+        const orthoSize = 15;
         camera.orthoTop = orthoSize;
         camera.orthoBottom = -orthoSize;
         camera.orthoLeft = -orthoSize * aspectRatio;
         camera.orthoRight = orthoSize * aspectRatio;
+
+        // Make sure the camera is set as the active camera
+        scene.activeCamera = camera;
 
         // Look down at the scene
         camera.rotation.x = Math.PI / 2;
@@ -40,13 +61,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const directionalLight = new BABYLON.DirectionalLight("directionalLight", new BABYLON.Vector3(0.5, -1, 0.5), scene);
         directionalLight.intensity = 0.3; // Reduced from 0.5
 
-        // Make sure canvas is properly set up for input
-        canvas.focus();
-
         // Load the game scene and entities
         console.log("Loading game scene with canvas...");
         gameEntities = await createGameScene(scene, canvas);
         gameScene = scene;
+        activeScene = scene; // Set as the active scene for rendering
 
         // Make camera follow player
         scene.onBeforeRenderObservable.add(() => {
@@ -57,73 +76,141 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        return scene;
+        // Set up game over handler
+        if (gameEntities.uiSystem) {
+            gameEntities.uiSystem.onGameOver = handleGameOver;
+        }
+
+        // Set up input handlers
+        setupInputHandlers();
     }
 
-    // Initialize the game and start the render loop
-    initGame().then(scene => {
-        // Start the render loop
-        engine.runRenderLoop(function() {
-            if (scene) {
-                scene.render();
-            }
-        });
+    // Handle game over
+    function handleGameOver() {
+        console.log("Game over!");
 
-        // Add global mouse event handlers that directly control the player
-        let isMouseDown = false;
+        // Get the final score
+        const finalScore = gameEntities.scene.zombiesKilled || 0;
 
-        // Function to handle mouse down event
-        function handleMouseDown(evt) {
+        // Clean up the game
+        cleanupGame();
+
+        // Show the menu with game over
+        initMenu();
+
+        // Show the game over screen with the score
+        if (menuScene) {
+            menuScene.showGameOver(finalScore);
+        }
+    }
+
+    // Clean up the current game
+    function cleanupGame() {
+        // Remove input handlers
+        removeInputHandlers();
+
+        // Clear attack interval
+        if (attackInterval) {
+            clearInterval(attackInterval);
+            attackInterval = null;
+        }
+
+        // Dispose the game scene
+        if (gameScene) {
+            gameScene.dispose();
+            gameScene = null;
+        }
+
+        // Clear game entities
+        gameEntities = null;
+    }
+
+    // Set up input handlers for the game
+    function setupInputHandlers() {
+        // Mouse down handler
+        mouseHandlers.down = function(evt) {
             if (evt.button === 0) { // Left mouse button
-                isMouseDown = true;
+                mouseHandlers.isMouseDown = true;
                 if (gameEntities && gameEntities.player) {
                     gameEntities.player.attack();
-                    console.log("Mouse down - attack");
                 }
-
-                // Prevent default to avoid issues
                 evt.preventDefault();
                 return false;
             }
-        }
+        };
 
-        // Function to handle mouse up event
-        function handleMouseUp(evt) {
+        // Mouse up handler
+        mouseHandlers.up = function(evt) {
             if (evt.button === 0) { // Left mouse button
-                isMouseDown = false;
-
-                // Prevent default
+                mouseHandlers.isMouseDown = false;
                 evt.preventDefault();
                 return false;
             }
-        }
+        };
 
-        // Add event listeners to multiple elements to ensure capture
-        document.addEventListener('mousedown', handleMouseDown, false);
-        document.addEventListener('mouseup', handleMouseUp, false);
-        canvas.addEventListener('mousedown', handleMouseDown, false);
-        canvas.addEventListener('mouseup', handleMouseUp, false);
-
-        // Also add to window as a fallback
-        window.addEventListener('mousedown', handleMouseDown, false);
-        window.addEventListener('mouseup', handleMouseUp, false);
-
-        // Add a regular interval to check if mouse is down and trigger attacks
-        const attackInterval = setInterval(function() {
-            if (isMouseDown && gameEntities && gameEntities.player) {
-                gameEntities.player.attack();
-                console.log("Continuous attack from interval");
-            }
-        }, 200); // Check every 200ms
-
-        // Add a click handler as a fallback
-        canvas.addEventListener('click', function(evt) {
+        // Click handler
+        mouseHandlers.click = function() {
             if (gameEntities && gameEntities.player) {
                 gameEntities.player.attack();
-                console.log("Click - attack");
             }
-        }, false);
-    });
+        };
+
+        // Add event listeners
+        document.addEventListener('mousedown', mouseHandlers.down, false);
+        document.addEventListener('mouseup', mouseHandlers.up, false);
+        canvas.addEventListener('mousedown', mouseHandlers.down, false);
+        canvas.addEventListener('mouseup', mouseHandlers.up, false);
+        window.addEventListener('mousedown', mouseHandlers.down, false);
+        window.addEventListener('mouseup', mouseHandlers.up, false);
+        canvas.addEventListener('click', mouseHandlers.click, false);
+
+        // Set up attack interval
+        attackInterval = setInterval(function() {
+            if (mouseHandlers.isMouseDown && gameEntities && gameEntities.player) {
+                gameEntities.player.attack();
+            }
+        }, 200);
+
+        // Keyboard handler for sound toggle
+        mouseHandlers.keydown = function(evt) {
+            // 'M' key to mute/unmute
+            if (evt.key === 'm' || evt.key === 'M') {
+                if (gameEntities && gameEntities.audioSystem) {
+                    const soundsEnabled = gameEntities.audioSystem.toggleSounds();
+                    console.log(`Sounds ${soundsEnabled ? 'enabled' : 'disabled'}`);
+                }
+            }
+        };
+
+        // Add keyboard event listener
+        window.addEventListener('keydown', mouseHandlers.keydown, false);
+    }
+
+    // Remove input handlers
+    function removeInputHandlers() {
+        if (mouseHandlers.down) {
+            document.removeEventListener('mousedown', mouseHandlers.down, false);
+            canvas.removeEventListener('mousedown', mouseHandlers.down, false);
+            window.removeEventListener('mousedown', mouseHandlers.down, false);
+        }
+
+        if (mouseHandlers.up) {
+            document.removeEventListener('mouseup', mouseHandlers.up, false);
+            canvas.removeEventListener('mouseup', mouseHandlers.up, false);
+            window.removeEventListener('mouseup', mouseHandlers.up, false);
+        }
+
+        if (mouseHandlers.click) {
+            canvas.removeEventListener('click', mouseHandlers.click, false);
+        }
+
+        if (mouseHandlers.keydown) {
+            window.removeEventListener('keydown', mouseHandlers.keydown, false);
+        }
+
+        // Reset mouse handlers
+        mouseHandlers = {};
+    }
 
     // Handle window resize
     window.addEventListener('resize', function() {
@@ -139,14 +226,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Add keyboard shortcut for sound toggle
-    window.addEventListener('keydown', function(evt) {
-        // 'M' key to mute/unmute
-        if (evt.key === 'm' || evt.key === 'M') {
-            if (gameEntities && gameEntities.audioSystem) {
-                const soundsEnabled = gameEntities.audioSystem.toggleSounds();
-                console.log(`Sounds ${soundsEnabled ? 'enabled' : 'disabled'}`);
-            }
+    // Start with the menu
+    initMenu();
+
+    // Set up a single render loop for the entire application
+    engine.runRenderLoop(function() {
+        if (activeScene) {
+            activeScene.render();
         }
     });
 });
