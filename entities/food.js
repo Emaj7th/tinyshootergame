@@ -1,4 +1,4 @@
-import { FOOD_TYPES, SPECIAL_FOOD_TYPE, MIN_BREATH_RANGE } from '../utils/constants.js';
+import { FOOD_TYPES, SPECIAL_FOOD_TYPE } from '../utils/constants.js';
 
 class Food {
     constructor(scene, position, type = null) {
@@ -34,6 +34,7 @@ class Food {
             opacity -= 0.05; // Reduce opacity by 5% each step
 
             if (this.mesh && this.mesh.material) {
+                // Set the material's alpha directly
                 this.mesh.material.alpha = opacity;
             }
 
@@ -47,75 +48,64 @@ class Food {
     }
 
     createMesh() {
-        // Create a different shape based on food type for better visual distinction
-        if (this.type === SPECIAL_FOOD_TYPE || this.type === 'sandwich') {
-            // Create a simple rectangle for both sandwich and special food
-            this.mesh = BABYLON.MeshBuilder.CreateBox(`food-${this.type}`, {width: 0.8, height: 0.2, depth: 0.6}, this.scene);
-        } else {
-            switch(this.type) {
-                case 'garlic':
-                    // Create a sphere for garlic
-                    this.mesh = BABYLON.MeshBuilder.CreateSphere(`food-${this.type}`, {diameter: 0.8}, this.scene);
-                    break;
-                case 'onion':
-                    // Create a torus for onion
-                    this.mesh = BABYLON.MeshBuilder.CreateTorus(`food-${this.type}`, {diameter: 0.8, thickness: 0.3}, this.scene);
-                    break;
-                case 'cheese':
-                    // Create a box for cheese
-                    this.mesh = BABYLON.MeshBuilder.CreateBox(`food-${this.type}`, {size: 0.8}, this.scene);
-                    break;
-                case 'coffee':
-                    // Create a cylinder for coffee
-                    this.mesh = BABYLON.MeshBuilder.CreateCylinder(`food-${this.type}`, {height: 0.8, diameter: 0.6}, this.scene);
-                    break;
-                // Sandwich case is handled above
-                // case 'sandwich':
-                //    this.mesh = BABYLON.MeshBuilder.CreateBox(`food-${this.type}`, {width: 0.8, height: 0.2, depth: 0.6}, this.scene);
-                //    break;
-                default:
-                    // Default to a box
-                    this.mesh = BABYLON.MeshBuilder.CreateBox(`food-${this.type}`, {size: 0.8}, this.scene);
-            }
-        }
+        // Create a plane for the food sprite
+        // Size 0.8 is a good starting point - can be adjusted based on player size
+        const size = 1;
+        this.mesh = BABYLON.MeshBuilder.CreatePlane(`food-${this.type}`, {
+            width: size,
+            height: size
+        }, this.scene);
 
+        // Position the food
         this.mesh.position = this.position.clone();
 
-        // Create a material for the food based on its type
+        // Make the plane always face the camera (billboarding)
+        this.mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+
+        // Create a material for the food texture
         const material = new BABYLON.StandardMaterial(`food-${this.type}-material`, this.scene);
 
-        // Set color based on food type
+        // Determine which image to use based on food type
+        let imagePath;
         if (this.type === SPECIAL_FOOD_TYPE) {
             // Special food looks exactly like a sandwich
-            material.diffuseColor = new BABYLON.Color3(0.8, 0.6, 0.4); // Same as sandwich
-            material.emissiveColor = new BABYLON.Color3(0.2, 0.15, 0.1); // Same as sandwich
+            imagePath = 'assets/images/food_sandwich.png';
         } else {
             switch(this.type) {
                 case 'garlic':
-                    material.diffuseColor = new BABYLON.Color3(0.9, 0.9, 0.8); // Off-white
-                    material.emissiveColor = new BABYLON.Color3(0.2, 0.2, 0.1); // Slight glow
+                    imagePath = 'assets/images/food_garlic.png';
                     break;
                 case 'onion':
-                    material.diffuseColor = new BABYLON.Color3(0.8, 0.7, 0.8); // Light purple
-                    material.emissiveColor = new BABYLON.Color3(0.2, 0.1, 0.2); // Slight glow
+                    imagePath = 'assets/images/food_onion.png';
                     break;
                 case 'cheese':
-                    material.diffuseColor = new BABYLON.Color3(1.0, 0.8, 0.0); // Yellow
-                    material.emissiveColor = new BABYLON.Color3(0.3, 0.2, 0.0); // Slight glow
+                    imagePath = 'assets/images/food_cheese.png';
                     break;
                 case 'coffee':
-                    material.diffuseColor = new BABYLON.Color3(0.4, 0.2, 0.1); // Brown
-                    material.emissiveColor = new BABYLON.Color3(0.1, 0.05, 0.0); // Slight glow
+                    imagePath = 'assets/images/food_coffee.png';
                     break;
                 case 'sandwich':
-                    material.diffuseColor = new BABYLON.Color3(0.8, 0.6, 0.4); // Tan
-                    material.emissiveColor = new BABYLON.Color3(0.2, 0.15, 0.1); // Slight glow
+                    imagePath = 'assets/images/food_sandwich.png';
                     break;
                 default:
-                    material.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5); // Gray
+                    // Default to sandwich if type is unknown
+                    imagePath = 'assets/images/food_sandwich.png';
             }
         }
 
+        // Set the texture
+        material.diffuseTexture = new BABYLON.Texture(imagePath, this.scene);
+
+        // Enable transparency for the PNG
+        material.diffuseTexture.hasAlpha = true;
+        material.useAlphaFromDiffuseTexture = true;
+        material.backFaceCulling = false;
+
+        // Disable lighting effects on the sprite
+        material.emissiveColor = new BABYLON.Color3(1, 1, 1); // Full brightness
+        material.disableLighting = true;
+
+        // Apply the material to the mesh
         this.mesh.material = material;
 
         // Add a small animation to make the food float up and down
@@ -123,16 +113,24 @@ class Food {
 
         // Add a rotation animation for more visibility
         this.startRotationAnimation();
+
+        console.log(`Created food sprite for ${this.type} using image: ${imagePath}`);
     }
 
     startRotationAnimation() {
-        // Create an animation to make the food rotate
+        // For billboarded planes, we'll rotate the texture instead of the mesh
+        // This creates a spinning effect while still facing the camera
         const rotationSpeed = this.type === SPECIAL_FOOD_TYPE ? 0.03 : 0.01; // Faster rotation for special food
 
         // Add an observer to the scene's onBeforeRenderObservable
         this.rotationObserver = this.scene.onBeforeRenderObservable.add(() => {
-            // Rotate the mesh
-            this.mesh.rotation.y += rotationSpeed;
+            // If we have a texture, rotate it
+            if (this.mesh.material && this.mesh.material.diffuseTexture) {
+                // Rotate the UV coordinates of the texture
+                this.mesh.material.diffuseTexture.uRotationCenter = 0.5;
+                this.mesh.material.diffuseTexture.vRotationCenter = 0.5;
+                this.mesh.material.diffuseTexture.uRotationSpeed = rotationSpeed;
+            }
         });
     }
 
