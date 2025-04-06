@@ -39,6 +39,11 @@ class AudioSystem {
                 console.log("Pickup sound loaded");
             }, { volume: 0.6 });
 
+            // Add damage sound
+            this.damageSound = new BABYLON.Sound("damage", "assets/audio/damage.wav", this.scene, () => {
+                console.log("Damage sound loaded");
+            }, { volume: 0.6 });
+
             this.jumpSound = new BABYLON.Sound("jump", "assets/audio/jump.wav", this.scene, () => {
                 console.log("Jump sound loaded");
             }, { volume: 0.5 });
@@ -126,6 +131,18 @@ class AudioSystem {
             }
         } catch (error) {
             console.warn("Error playing pickup sound:", error);
+        }
+    }
+
+    playDamageSound() {
+        if (!this.soundsLoaded || !this.soundsEnabled) return;
+
+        try {
+            if (this.damageSound && !this.damageSound.isPlaying) {
+                this.damageSound.play();
+            }
+        } catch (error) {
+            console.warn("Error playing damage sound:", error);
         }
     }
 

@@ -327,8 +327,15 @@ class UISystem {
 
         // Check for game over - only if health is actually 0 or less and game over hasn't been shown yet
         if (this.player.health <= 0 && !this.gameOverShown) {
-            console.log("Game over triggered. Player health:", this.player.health);
-            this.showGameOver();
+            console.log("Game over condition detected. Player health:", this.player.health);
+
+            // Double-check that we haven't already shown game over
+            if (!this.gameOverShown) {
+                console.log("Calling showGameOver method...");
+                this.showGameOver();
+            } else {
+                console.warn("Game over already shown, but condition was rechecked");
+            }
         }
     }
 
@@ -468,18 +475,40 @@ class UISystem {
     }
 
     showGameOver() {
+        console.log("showGameOver method called, gameOverShown:", this.gameOverShown);
+
         if (!this.gameOverShown) {
             console.log("Showing game over screen");
-            this.gameOverContainer.isVisible = true;
-            this.gameOverShown = true;
 
-            // Call the game over callback if it exists
-            if (typeof this.onGameOver === 'function') {
-                // Wait a short time to show the game over screen before transitioning
-                setTimeout(() => {
-                    this.onGameOver();
-                }, 2000);
+            try {
+                // Make sure the container exists
+                if (!this.gameOverContainer) {
+                    console.error("Game over container is null or undefined!");
+                    return;
+                }
+
+                // Show the game over screen
+                this.gameOverContainer.isVisible = true;
+                this.gameOverShown = true;
+                console.log("Game over screen visibility set to true");
+
+                // Call the game over callback if it exists
+                if (typeof this.onGameOver === 'function') {
+                    console.log("Game over callback exists, will call in 2 seconds");
+
+                    // Wait a short time to show the game over screen before transitioning
+                    setTimeout(() => {
+                        console.log("Calling game over callback now");
+                        this.onGameOver();
+                    }, 2000);
+                } else {
+                    console.warn("No game over callback function defined");
+                }
+            } catch (error) {
+                console.error("Error in showGameOver:", error);
             }
+        } else {
+            console.log("Game over already shown, ignoring call");
         }
     }
 

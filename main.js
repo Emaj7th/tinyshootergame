@@ -87,42 +87,66 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle game over
     function handleGameOver() {
-        console.log("Game over!");
+        console.log("Game over handler called!");
 
-        // Get the final score
-        const finalScore = gameEntities.scene.zombiesKilled || 0;
+        try {
+            // Get the final score
+            const finalScore = gameEntities && gameEntities.scene ? (gameEntities.scene.zombiesKilled || 0) : 0;
+            console.log(`Final score: ${finalScore}`);
 
-        // Clean up the game
-        cleanupGame();
+            // Clean up the game
+            console.log("Cleaning up game resources...");
+            cleanupGame();
 
-        // Show the menu with game over
-        initMenu();
+            // Show the menu with game over
+            console.log("Initializing menu...");
+            initMenu();
 
-        // Show the game over screen with the score
-        if (menuScene) {
-            menuScene.showGameOver(finalScore);
+            // Show the game over screen with the score
+            if (menuScene) {
+                console.log("Showing game over screen with score...");
+                menuScene.showGameOver(finalScore);
+            } else {
+                console.error("Menu scene is null or undefined!");
+            }
+        } catch (error) {
+            console.error("Error in handleGameOver:", error);
         }
     }
 
     // Clean up the current game
     function cleanupGame() {
-        // Remove input handlers
-        removeInputHandlers();
+        console.log("Starting game cleanup...");
 
-        // Clear attack interval
-        if (attackInterval) {
-            clearInterval(attackInterval);
-            attackInterval = null;
+        try {
+            // Remove input handlers
+            console.log("Removing input handlers...");
+            removeInputHandlers();
+
+            // Clear attack interval
+            if (attackInterval) {
+                console.log("Clearing attack interval...");
+                clearInterval(attackInterval);
+                attackInterval = null;
+            }
+
+            // Dispose the game scene
+            if (gameScene) {
+                console.log("Disposing game scene...");
+                gameScene.dispose();
+                gameScene = null;
+            } else {
+                console.warn("Game scene already null during cleanup");
+            }
+
+            // Clear game entities
+            console.log("Clearing game entities reference...");
+            gameEntities = null;
+
+            console.log("Game cleanup completed successfully");
+        } catch (error) {
+            console.error("Error during game cleanup:", error);
         }
-
-        // Dispose the game scene
-        if (gameScene) {
-            gameScene.dispose();
-            gameScene = null;
-        }
-
-        // Clear game entities
-        gameEntities = null;
     }
 
     // Set up input handlers for the game

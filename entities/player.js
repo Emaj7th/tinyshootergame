@@ -773,23 +773,31 @@ class Player {
     takeDamage() {
         // Add a small cooldown to prevent multiple hits at once
         if (this._lastDamageTime && Date.now() - this._lastDamageTime < 1000) {
+            console.log("Damage cooldown active, ignoring hit");
             return; // Skip if hit too recently (1 second cooldown)
         }
 
         this._lastDamageTime = Date.now();
+        const oldHealth = this.health;
         this.health--;
-        console.log("Player took damage. Health now:", this.health);
+        console.log(`Player took damage. Health: ${oldHealth} -> ${this.health}`);
 
         // Slow down the player with each hit
         this.baseSpeed = this.baseSpeed * 0.8;
         this.speed = this.baseSpeed;
+        console.log(`Player speed reduced to ${this.speed.toFixed(2)}`);
 
         // Flash the player mesh to indicate damage
         this.flashDamage();
 
+        // Play damage sound if available
+        if (this.audioSystem) {
+            this.audioSystem.playDamageSound();
+        }
+
         if (this.health <= 0) {
-            console.log("Game Over!");
-            // Trigger game over logic
+            console.log("Health reached zero - Game Over!");
+            // Game over will be triggered by the UI system
         }
     }
 
