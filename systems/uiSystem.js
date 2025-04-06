@@ -8,6 +8,9 @@ class UISystem {
         // Flag to track if game over has been shown
         this.gameOverShown = false;
 
+        // Flag to track if game over callback has been triggered
+        this.gameOverCallbackTriggered = false;
+
         // Callback for game over
         this.onGameOver = null;
 
@@ -309,32 +312,28 @@ class UISystem {
     update() {
         // Update health display
         this.updateHealthDisplay();
-
-        // Update food inventory
-        this.updateFoodInventory();
-
-        // Update cooldown indicators
-        this.updateCooldownIndicators();
-
-        // Update breath range indicator
-        this.updateBreathRangeIndicator();
-
-        // Update zombie kill counter
         this.updateZombieKillCounter();
+        this.updateFoodInventory();  // Changed from updateCollectedFoodsDisplay
+        this.updateCooldownIndicators(); // This updates fart mode display as well
+        this.updateBreathRangeIndicator(); // Update breath range display
+        this.updateHordeModeNotification(); // Update horde mode notification
 
-        // Update horde mode notification
-        this.updateHordeModeNotification();
+        // Add detailed logging for game over conditions
+        if (this.player.health <= 0) {
+            console.log("[HEALTH_CHECK] Player health is 0 or less, health value:", this.player.health);
+        }
 
         // Check for game over - only if health is actually 0 or less and game over hasn't been shown yet
         if (this.player.health <= 0 && !this.gameOverShown) {
-            console.log("Game over condition detected. Player health:", this.player.health);
+            console.log("[GAMEOVER_TRIGGER] Game over condition met:");
+            console.log("[GAMEOVER_TRIGGER] Player health:", this.player.health);
+            console.log("[GAMEOVER_TRIGGER] GameOverShown flag:", this.gameOverShown);
+            console.log("[GAMEOVER_TRIGGER] GameOverCallbackTriggered flag:", this.gameOverCallbackTriggered);
 
             // Double-check that we haven't already shown game over
             if (!this.gameOverShown) {
-                console.log("Calling showGameOver method...");
+                console.log("[GAMEOVER_TRIGGER] Calling showGameOver method...");
                 this.showGameOver();
-            } else {
-                console.warn("Game over already shown, but condition was rechecked");
             }
         }
     }
@@ -475,40 +474,51 @@ class UISystem {
     }
 
     showGameOver() {
-        console.log("showGameOver method called, gameOverShown:", this.gameOverShown);
+        console.log(`[GAMEOVER] Triggered at ${Date.now()}`);
+
+        // CRITICAL: Add extra protection against multiple game over calls
+        if (this.gameOverCallbackTriggered) {
+            console.log(`[GAMEOVER] Callback already triggered, ignoring duplicate call`);
+            return;
+        }
 
         if (!this.gameOverShown) {
-            console.log("Showing game over screen");
+            console.log(`[GAMEOVER] First time showing game over screen`);
 
             try {
                 // Make sure the container exists
                 if (!this.gameOverContainer) {
-                    console.error("Game over container is null or undefined!");
+                    console.error(`[GAMEOVER] Game over container is null or undefined!`);
                     return;
                 }
 
                 // Show the game over screen
                 this.gameOverContainer.isVisible = true;
                 this.gameOverShown = true;
-                console.log("Game over screen visibility set to true");
 
-                // Call the game over callback if it exists
+                // Mark callback as triggered IMMEDIATELY to prevent multiple calls
+                this.gameOverCallbackTriggered = true;
+
                 if (typeof this.onGameOver === 'function') {
-                    console.log("Game over callback exists, will call in 2 seconds");
+                    console.log(`[GAMEOVER] Setting up callback timer`);
 
-                    // Wait a short time to show the game over screen before transitioning
+                    // Use a longer delay to ensure UI is fully visible before transitioning
                     setTimeout(() => {
-                        console.log("Calling game over callback now");
-                        this.onGameOver();
-                    }, 2000);
+                        try {
+                            console.log(`[GAMEOVER] Executing callback`);
+                            this.onGameOver();
+                        } catch (error) {
+                            console.error(`[GAMEOVER] Error in callback:`, error);
+                        }
+                    }, 3000); // Increased from 2000 to 3000ms
                 } else {
-                    console.warn("No game over callback function defined");
+                    console.warn(`[GAMEOVER] No game over callback function defined`);
                 }
             } catch (error) {
-                console.error("Error in showGameOver:", error);
+                console.error(`[GAMEOVER] Error in showGameOver:`, error);
             }
         } else {
-            console.log("Game over already shown, ignoring call");
+            console.log(`[GAMEOVER] Game over already shown, ignoring call`);
         }
     }
 

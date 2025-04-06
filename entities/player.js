@@ -20,28 +20,80 @@ class Player {
         this.scene = scene;
         this.audioSystem = audioSystem;
 
-        // Store reference to scene for updating zombie speed and horde mode
+        // Create a plane for the player collision/hitbox
+        this.mesh = BABYLON.MeshBuilder.CreatePlane("playerPlane", {
+            width: 1.5,  // Adjust size to match sprite visual size
+            height: 1.5
+        }, scene);
 
-        // Create player mesh
-        this.mesh = BABYLON.MeshBuilder.CreateBox("player", {height: 2, width: 1, depth: 1}, scene);
-        this.mesh.material = new BABYLON.StandardMaterial("playerMat", scene);
-        this.mesh.material.diffuseColor = new BABYLON.Color3(1, 0, 0);
-        this.mesh.position.y = 1;
+        // Rotate plane to lay flat on the ground
+        this.mesh.rotation.x = Math.PI / 2;
 
-        // Create a direction indicator (nose) to show which way the player is facing
-        this.directionIndicator = BABYLON.MeshBuilder.CreateBox("playerNose", {height: 0.5, width: 0.5, depth: 0.7}, scene);
-        this.directionIndicator.material = new BABYLON.StandardMaterial("nosemat", scene);
-        this.directionIndicator.material.diffuseColor = new BABYLON.Color3(0, 0, 0); // Black nose
-        this.directionIndicator.parent = this.mesh; // Attach to player
-        this.directionIndicator.position = new BABYLON.Vector3(0, 0, 0.85); // Position in front
+        // Position the plane slightly above ground to prevent z-fighting
+        this.mesh.position.y = 0.01;
 
-        // Movement properties
+        // Create invisible material for the collision plane
+        const playerPlaneMaterial = new BABYLON.StandardMaterial("playerPlaneMat", scene);
+        playerPlaneMaterial.alpha = 0;
+        playerPlaneMaterial.backFaceCulling = false;
+        this.mesh.material = playerPlaneMaterial;
+
+        // CRITICAL: Ensure the mesh never affects visibility
+        this.mesh.isVisible = false;
+        this.mesh.visibility = 0;
+        this.mesh.checkCollisions = true;
+        this.mesh.isPickable = true;
+        this.mesh.renderingGroupId = 0; // Lowest rendering group
+
+        // Create sprite manager for up movement
+        this.spriteManagerUp = new BABYLON.SpriteManager(
+            "playerManagerUp",
+            "assets/images/character_up_spritemap.png",
+            1, // Only one sprite in this manager
+            {width: 300, height: 400}, // Size of each sprite cell
+            scene
+        );
+
+        // Create the up-facing sprite
+        this.spriteUp = new BABYLON.Sprite("playerUp", this.spriteManagerUp);
+        this.spriteUp.width = 2;
+        this.spriteUp.height = 2;
+        this.spriteUp.position.y = 1;
+        this.spriteUp.renderingGroupId = 2; // Highest rendering group to ensure visibility
+        this.spriteUp.depth = 0.1; // Set depth to ensure it renders on top
+
+        // Initialize other properties
         this.speed = PLAYER_SPEED;
         this.baseSpeed = PLAYER_SPEED;
         this.runSpeed = PLAYER_RUN_SPEED;
         this.isRunning = false;
         this.runTimeLeft = RUN_DURATION;
         this.runCooldown = 0;
+
+        // Create sprite manager for down movement
+        this.spriteManagerDown = new BABYLON.SpriteManager(
+            "playerManagerDown",
+            "assets/images/character_down_spritemap.png",
+            1,
+            {width: 300, height: 400},
+            scene
+        );
+
+        // Create the down-facing sprite
+        this.spriteDown = new BABYLON.Sprite("playerDown", this.spriteManagerDown);
+        this.spriteDown.width = 2;
+        this.spriteDown.height = 2;
+        this.spriteDown.position.y = 1;
+        this.spriteDown.renderingGroupId = 2; // Highest rendering group to ensure visibility
+        this.spriteDown.depth = 0.1; // Set depth to ensure it renders on top
+
+        // Set up sprite animations
+        this.setupSpriteAnimations();
+
+        // Track current direction and movement state
+        this.currentDirection = "down"; // Start with down sprite
+        this.isMoving = false;
+        this.lastMoveTime = 0;
 
         // Jump properties
         this.canJump = true;
@@ -57,12 +109,11 @@ class Player {
         this.facingDirection = new BABYLON.Vector3(0, 0, -1);
         this.lastMoveDirection = new BABYLON.Vector3(0, 0, -1);
         this.activeBreathAttacks = [];
-        this._usingMouseAim = false; // Flag to track if we're using mouse for aiming
-        this._lastAttackTime = 0; // Track last attack time for rate limiting
+        this._usingMouseAim = false;
+        this._lastAttackTime = 0;
 
         // Food and fart properties
-        // Start with 1 piece of food in inventory
-        this.collectedFoods = ['sandwich']; // Start with a sandwich
+        this.collectedFoods = ['sandwich'];
         this.consumedFoods = 0;
         this.inFartMode = false;
         this.fartTimeLeft = 0;
@@ -78,6 +129,9 @@ class Player {
         // Create a particle system for the fart cloud - increased particles for denser cloud
         this.fartParticleSystem = new BABYLON.ParticleSystem("fartParticles", 5000, this.scene);
         this.fartParticleSystem.particleTexture = new BABYLON.Texture("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", this.scene);
+
+        // Set rendering group to ensure it doesn't hide the player sprite
+        this.fartParticleSystem.renderingGroupId = 0; // Lower rendering group than player (2) and food (1)
 
         // Set particle system properties for a larger, more visible cloud
         // Emit from behind the player (opposite to facing direction)
@@ -137,10 +191,45 @@ class Player {
             // Also update facing direction if we're not using mouse to aim
             if (!this._usingMouseAim) {
                 this.facingDirection = this.lastMoveDirection.clone();
+            }
 
-                // Rotate the player mesh to face the movement direction
-                const angle = Math.atan2(direction.x, direction.z);
-                this.mesh.rotation.y = angle;
+            // Mark as moving and update last move time
+            this.isMoving = true;
+            this.lastMoveTime = Date.now();
+
+            // Start animation if not already animating
+            if (!this.isAnimating) {
+                this.isAnimating = true;
+                this.lastFrameTime = Date.now();
+                console.log("Starting animation");
+            }
+
+            // Determine which sprite to show based on movement direction
+            // If moving down (positive z), use down sprite, otherwise use up sprite
+            // This matches the keyboard keys: W = up, S = down
+            const isMovingDown = direction.z > 0;
+
+            // Switch sprites if direction changed
+            if (isMovingDown && this.currentDirection !== "down") {
+                // Switch to down sprite
+                this.currentDirection = "down";
+                this.spriteDown.isVisible = true;
+                this.spriteUp.isVisible = false;
+
+                // Keep the same animation frame when switching sprites
+                this.spriteDown.cellIndex = this.animationFrame;
+
+                console.log("Switched to DOWN sprite");
+            } else if (!isMovingDown && this.currentDirection !== "up") {
+                // Switch to up sprite
+                this.currentDirection = "up";
+                this.spriteUp.isVisible = true;
+                this.spriteDown.isVisible = false;
+
+                // Keep the same animation frame when switching sprites
+                this.spriteUp.cellIndex = this.animationFrame;
+
+                console.log("Switched to UP sprite");
             }
 
             // Apply current speed to movement
@@ -161,6 +250,20 @@ class Player {
             if (!this.checkObstacleCollision(newPosition)) {
                 // No collision, update the position
                 this.mesh.position = newPosition;
+
+                // Update sprite positions immediately for smoother movement
+                // CRITICAL: Set the correct y-position for sprites
+                if (this.spriteUp) {
+                    const upPos = this.mesh.position.clone();
+                    upPos.y = 1; // Set the correct height
+                    this.spriteUp.position = upPos;
+                }
+                if (this.spriteDown) {
+                    const downPos = this.mesh.position.clone();
+                    downPos.y = 1; // Set the correct height
+                    this.spriteDown.position = downPos;
+                }
+
                 console.log("Player moved. Position:", this.mesh.position.toString());
             } else {
                 console.log("Movement blocked by obstacle");
@@ -233,16 +336,7 @@ class Player {
     }
 
     setFacingDirection(direction) {
-        if (direction.length() > 0) {
-            this.facingDirection = direction.normalize().clone();
-            this._usingMouseAim = true; // Flag that we're using mouse aim
-
-            // Rotate the player mesh to face the direction
-            const angle = Math.atan2(direction.x, direction.z);
-            this.mesh.rotation.y = angle;
-
-            console.log("Facing direction set to:", this.facingDirection.toString(), "Angle:", angle);
-        }
+        this.facingDirection = direction;
     }
 
     jump() {
@@ -489,41 +583,80 @@ class Player {
     }
 
     collectFood(foodType) {
-        // Check if this is a special food that resets breath range
+        // CRITICAL: Store current sprite states before doing anything else
+        const currentDirection = this.currentDirection;
+        // Store current position for sprite positioning
+        const currentPosition = this.mesh.position.clone();
+        currentPosition.y = 1; // Ensure correct height
+
+        console.log(`[FOOD] Collecting ${foodType}, current direction: ${currentDirection}`);
+
         if (foodType === SPECIAL_FOOD_TYPE) {
-            console.log("Special food collected! Resetting breath range to", MIN_BREATH_RANGE);
-
-            // Reset breath range to 5
-            const oldRange = this.breathRange;
+            console.log("[FOOD] Special food collected! Resetting breath range");
             this.breathRange = MIN_BREATH_RANGE;
-
-            // Update zombie speed based on new breath range
             this.updateZombieSpeed();
 
-            // Create a special effect for the breath reset
+            // Create a special effect
             this.createBreathResetEffect();
 
-            // Play a special sound
             if (this.audioSystem) {
                 this.audioSystem.playPickupSound();
-                // Play it twice for emphasis
-                setTimeout(() => {
-                    this.audioSystem.playPickupSound();
-                }, 200);
             }
         } else {
-            // Regular food collection
+            console.log(`[FOOD] Regular food collected: ${foodType}`);
             this.collectedFoods.push(foodType);
-            console.log("Food collected:", foodType, "Total:", this.collectedFoods.length);
 
-            // Flash the player mesh to indicate food collection
+            // Flash the player to indicate food pickup
             this.flashFoodPickup();
 
-            // Play pickup sound
             if (this.audioSystem) {
                 this.audioSystem.playPickupSound();
             }
         }
+
+        // CRITICAL: Force sprite visibility and position after collection
+        // This prevents the sprite from disappearing
+
+        // First, force visibility immediately
+        if (this.currentDirection === "up") {
+            this.spriteUp.isVisible = true;
+            this.spriteDown.isVisible = false;
+            this.spriteUp.position = this.mesh.position.clone();
+            this.spriteUp.position.y = 1;
+            this.spriteUp.renderingGroupId = 2;
+            this.spriteUp.depth = 0.1;
+        } else {
+            this.spriteDown.isVisible = true;
+            this.spriteUp.isVisible = false;
+            this.spriteDown.position = this.mesh.position.clone();
+            this.spriteDown.position.y = 1;
+            this.spriteDown.renderingGroupId = 2;
+            this.spriteDown.depth = 0.1;
+        }
+        console.log(`[FOOD] Forced sprite visibility immediately after food collection`);
+
+        // Then, force visibility again after a short delay to ensure it sticks
+        setTimeout(() => {
+            // Force correct sprite visibility based on current direction
+            if (this.currentDirection === "up") {
+                this.spriteUp.isVisible = true;
+                this.spriteDown.isVisible = false;
+                this.spriteUp.position = this.mesh.position.clone();
+                this.spriteUp.position.y = 1;
+                this.spriteUp.renderingGroupId = 2;
+                this.spriteUp.depth = 0.1;
+            } else {
+                this.spriteDown.isVisible = true;
+                this.spriteUp.isVisible = false;
+                this.spriteDown.position = this.mesh.position.clone();
+                this.spriteDown.position.y = 1;
+                this.spriteDown.renderingGroupId = 2;
+                this.spriteDown.depth = 0.1;
+            }
+            console.log(`[FOOD] Forced sprite visibility again after food collection`);
+        }, 50); // Small delay to ensure this happens after any other changes
+
+        return foodType;
     }
 
     createBreathResetEffect() {
@@ -589,31 +722,94 @@ class Player {
     }
 
     flashBreathReset() {
-        // Flash the player mesh blue to indicate breath reset
-        const originalColor = this.mesh.material.diffuseColor.clone();
-        this.mesh.material.diffuseColor = new BABYLON.Color3(0.3, 0.7, 1.0); // Blue
-        this.mesh.material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.5); // Blue glow
+        // Store current sprite visibility state
+        const wasUpVisible = this.spriteUp.isVisible;
+        const wasDownVisible = this.spriteDown.isVisible;
+        const currentDirection = this.currentDirection;
+
+        console.log(`[FLASH_RESET] Current direction: ${currentDirection}`);
+        console.log(`[FLASH_RESET] Sprite UP visible before flash: ${wasUpVisible}`);
+        console.log(`[FLASH_RESET] Sprite DOWN visible before flash: ${wasDownVisible}`);
+
+        // Flash the player sprites blue to indicate breath reset
+        const flashColor = new BABYLON.Color3(0.3, 0.7, 1.0); // Blue tint
+
+        // Store original colors
+        const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
+        const originalDownColor = this.spriteDown.color ? this.spriteDown.color.clone() : new BABYLON.Color3(1, 1, 1);
+
+        // Apply blue tint
+        this.spriteUp.color = flashColor;
+        this.spriteDown.color = flashColor;
+
+        // CRITICAL: Force the correct sprite to be visible
+        if (this.currentDirection === "up") {
+            this.spriteUp.isVisible = true;
+            this.spriteDown.isVisible = false;
+        } else {
+            this.spriteDown.isVisible = true;
+            this.spriteUp.isVisible = false;
+        }
+
+        console.log(`[FLASH_RESET] Forced sprite visibility during flash`);
 
         // Return to original color after a short time
         setTimeout(() => {
-            if (this.mesh && this.mesh.material) {
-                this.mesh.material.diffuseColor = originalColor;
-                this.mesh.material.emissiveColor = new BABYLON.Color3(0, 0, 0); // No glow
+            // Restore original colors
+            if (this.spriteUp) this.spriteUp.color = originalUpColor;
+            if (this.spriteDown) this.spriteDown.color = originalDownColor;
+
+            // CRITICAL: Ensure correct sprite visibility
+            if (this.currentDirection === "up") {
+                this.spriteUp.isVisible = true;
+                this.spriteDown.isVisible = false;
+            } else {
+                this.spriteDown.isVisible = true;
+                this.spriteUp.isVisible = false;
             }
+
+            console.log(`[FLASH_RESET] Restored sprite visibility after flash`);
         }, 500);
     }
 
     flashFoodPickup() {
-        // Flash the player mesh green to indicate food pickup
-        const originalColor = this.mesh.material.diffuseColor.clone();
-        this.mesh.material.diffuseColor = new BABYLON.Color3(0, 1, 0); // Bright green
+        console.log(`[FLASH_FOOD] Starting food pickup flash effect`);
 
-        // Return to original color after a short time
-        setTimeout(() => {
-            if (this.mesh && this.mesh.material) {
-                this.mesh.material.diffuseColor = originalColor;
-            }
-        }, 200);
+        // Flash the player sprites green to indicate food pickup
+        const flashColor = new BABYLON.Color3(0.3, 1.0, 0.3); // Green tint
+
+        // Store original colors
+        const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
+        const originalDownColor = this.spriteDown.color ? this.spriteDown.color.clone() : new BABYLON.Color3(1, 1, 1);
+
+        try {
+            // Apply green tint
+            this.spriteUp.color = flashColor;
+            this.spriteDown.color = flashColor;
+
+            // CRITICAL: Force the correct sprite to be visible using the dedicated method
+            this.enforceCorrectSpriteVisibility();
+
+            console.log(`[FLASH_FOOD] Applied flash effect, UP visible=${this.spriteUp.isVisible}, DOWN visible=${this.spriteDown.isVisible}`);
+
+            // Return to original color after a short time
+            setTimeout(() => {
+                try {
+                    // Restore original colors
+                    if (this.spriteUp) this.spriteUp.color = originalUpColor;
+                    if (this.spriteDown) this.spriteDown.color = originalDownColor;
+
+                    // CRITICAL: Force the correct sprite to be visible using the dedicated method
+                    this.enforceCorrectSpriteVisibility();
+
+                    console.log(`[FLASH_FOOD] Restored colors after flash, UP visible=${this.spriteUp.isVisible}, DOWN visible=${this.spriteDown.isVisible}`);
+                } catch (error) {
+                    console.error(`[FLASH_FOOD] Error restoring colors:`, error);
+                }
+            }, 200);
+        } catch (error) {
+            console.error(`[FLASH_FOOD] Error applying flash effect:`, error);
+        }
     }
 
     consumeFood() {
@@ -672,33 +868,97 @@ class Player {
     }
 
     flashFoodConsumption() {
-        // Flash the player mesh yellow to indicate food consumption
-        const originalColor = this.mesh.material.diffuseColor.clone();
-        this.mesh.material.diffuseColor = new BABYLON.Color3(1, 1, 0); // Yellow
+        // Store current sprite visibility state
+        const wasUpVisible = this.spriteUp.isVisible;
+        const wasDownVisible = this.spriteDown.isVisible;
+        const currentDirection = this.currentDirection;
+
+        console.log(`[FLASH_CONSUME] Current direction: ${currentDirection}`);
+        console.log(`[FLASH_CONSUME] Sprite UP visible before flash: ${wasUpVisible}`);
+        console.log(`[FLASH_CONSUME] Sprite DOWN visible before flash: ${wasDownVisible}`);
+
+        // Flash the player sprites yellow to indicate food consumption
+        const flashColor = new BABYLON.Color3(1, 1, 0.3); // Yellow tint
+
+        // Store original colors
+        const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
+        const originalDownColor = this.spriteDown.color ? this.spriteDown.color.clone() : new BABYLON.Color3(1, 1, 1);
+
+        // Apply yellow tint
+        this.spriteUp.color = flashColor;
+        this.spriteDown.color = flashColor;
+
+        // CRITICAL: Force the correct sprite to be visible
+        if (this.currentDirection === "up") {
+            this.spriteUp.isVisible = true;
+            this.spriteDown.isVisible = false;
+        } else {
+            this.spriteDown.isVisible = true;
+            this.spriteUp.isVisible = false;
+        }
+
+        console.log(`[FLASH_CONSUME] Forced sprite visibility during flash`);
 
         // Return to original color after a short time
         setTimeout(() => {
-            if (this.mesh && this.mesh.material) {
-                this.mesh.material.diffuseColor = originalColor;
+            // Restore original colors
+            if (this.spriteUp) this.spriteUp.color = originalUpColor;
+            if (this.spriteDown) this.spriteDown.color = originalDownColor;
+
+            // CRITICAL: Ensure correct sprite visibility
+            if (this.currentDirection === "up") {
+                this.spriteUp.isVisible = true;
+                this.spriteDown.isVisible = false;
+            } else {
+                this.spriteDown.isVisible = true;
+                this.spriteUp.isVisible = false;
             }
+
+            console.log(`[FLASH_CONSUME] Restored sprite visibility after flash`);
         }, 300);
     }
 
     activateFartMode() {
+        console.log("[FART_START] Entering fart mode");
+        console.log("[FART_START] Current health:", this.health);
+        console.log("[FART_START] Current position:", this.mesh.position.toString());
+
+        // Store current sprite visibility state
+        const wasUpVisible = this.spriteUp.isVisible;
+        const wasDownVisible = this.spriteDown.isVisible;
+        const currentDirection = this.currentDirection;
+        console.log(`[FART_START] Current direction: ${currentDirection}`);
+        console.log(`[FART_START] Sprite UP visible: ${wasUpVisible}`);
+        console.log(`[FART_START] Sprite DOWN visible: ${wasDownVisible}`);
+
         this.inFartMode = true;
         this.fartTimeLeft = FART_DURATION;
 
-        console.log("FART MODE ACTIVATED! Duration:", FART_DURATION, "seconds");
-
         // Start the particle system
-        this.fartParticleSystem.start();
-
-        // Change player color to indicate fart mode
-        if (this.mesh && this.mesh.material) {
-            this._originalPlayerColor = this.mesh.material.diffuseColor.clone();
-            this.mesh.material.diffuseColor = new BABYLON.Color3(0.3, 0.7, 0.3); // Green tint
-            this.mesh.material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Green glow
+        if (this.fartParticleSystem) {
+            this.fartParticleSystem.start();
         }
+
+        // Store original colors
+        this._originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
+        this._originalDownColor = this.spriteDown.color ? this.spriteDown.color.clone() : new BABYLON.Color3(1, 1, 1);
+
+        // Apply green tint
+        const fartColor = new BABYLON.Color3(0.3, 0.7, 0.3);
+        this.spriteUp.color = fartColor;
+        this.spriteDown.color = fartColor;
+
+        // CRITICAL: Force the correct sprite to be visible immediately
+        if (this.currentDirection === "up") {
+            this.spriteUp.isVisible = true;
+            this.spriteDown.isVisible = false;
+        } else {
+            this.spriteDown.isVisible = true;
+            this.spriteUp.isVisible = false;
+        }
+        console.log(`[FART_START] Forced sprite visibility immediately after fart mode activation`);
+        console.log(`[FART_START] Sprite UP visible: ${this.spriteUp.isVisible}`);
+        console.log(`[FART_START] Sprite DOWN visible: ${this.spriteDown.isVisible}`);
 
         // Play fart sound
         if (this.audioSystem) {
@@ -727,11 +987,11 @@ class Player {
         this.fartRangeIndicator.rotation.x = Math.PI / 2;
 
         // Create a semi-transparent material
-        const material = new BABYLON.StandardMaterial("fartRangeMaterial", this.scene);
-        material.diffuseColor = new BABYLON.Color3(0.3, 0.7, 0.3); // Green
-        material.alpha = 0.3; // Very transparent
-        material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Slight glow
-        this.fartRangeIndicator.material = material;
+        const fartRangeMaterial = new BABYLON.StandardMaterial("fartRangeMaterial", this.scene);
+        fartRangeMaterial.diffuseColor = new BABYLON.Color3(0.3, 0.7, 0.3); // Green
+        fartRangeMaterial.alpha = 0.3; // Very transparent
+        fartRangeMaterial.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Slight glow
+        this.fartRangeIndicator.material = fartRangeMaterial;
 
         // Make it follow the player
         this.fartRangeUpdateObserver = this.scene.onBeforeRenderObservable.add(() => {
@@ -743,19 +1003,44 @@ class Player {
     }
 
     deactivateFartMode() {
+        // Store current sprite visibility state before deactivating
+        const wasUpVisible = this.spriteUp.isVisible;
+        const wasDownVisible = this.spriteDown.isVisible;
+        const currentDirection = this.currentDirection;
+
+        console.log("[FART_END] Deactivating fart mode");
+        console.log(`[FART_END] Current direction: ${currentDirection}`);
+        console.log(`[FART_END] Sprite UP visible: ${wasUpVisible}`);
+        console.log(`[FART_END] Sprite DOWN visible: ${wasDownVisible}`);
+
         this.inFartMode = false;
         this.consumedFoods = 0;
 
-        console.log("Fart mode deactivated");
-
         // Stop the particle system
-        this.fartParticleSystem.stop();
-
-        // Restore original player color
-        if (this.mesh && this.mesh.material && this._originalPlayerColor) {
-            this.mesh.material.diffuseColor = this._originalPlayerColor;
-            this.mesh.material.emissiveColor = new BABYLON.Color3(0, 0, 0); // Remove glow
+        if (this.fartParticleSystem) {
+            this.fartParticleSystem.stop();
         }
+
+        // Restore original sprite colors
+        if (this.spriteUp && this._originalUpColor) {
+            this.spriteUp.color = this._originalUpColor;
+        }
+
+        if (this.spriteDown && this._originalDownColor) {
+            this.spriteDown.color = this._originalDownColor;
+        }
+
+        // CRITICAL: Force the correct sprite to be visible immediately
+        if (this.currentDirection === "up") {
+            this.spriteUp.isVisible = true;
+            this.spriteDown.isVisible = false;
+        } else {
+            this.spriteDown.isVisible = true;
+            this.spriteUp.isVisible = false;
+        }
+        console.log(`[FART_END] Forced sprite visibility immediately after fart mode deactivation`);
+        console.log(`[FART_END] Sprite UP visible: ${this.spriteUp.isVisible}`);
+        console.log(`[FART_END] Sprite DOWN visible: ${this.spriteDown.isVisible}`);
 
         // Remove the fart range indicator
         if (this.fartRangeIndicator) {
@@ -778,82 +1063,227 @@ class Player {
         }
 
         this._lastDamageTime = Date.now();
-        const oldHealth = this.health;
         this.health--;
-        console.log(`Player took damage. Health: ${oldHealth} -> ${this.health}`);
+        console.log(`[HEALTH] Player health reduced to: ${this.health}`);
 
-        // Slow down the player with each hit
-        this.baseSpeed = this.baseSpeed * 0.8;
-        this.speed = this.baseSpeed;
-        console.log(`Player speed reduced to ${this.speed.toFixed(2)}`);
-
-        // Flash the player mesh to indicate damage
+        // Flash the player to indicate damage
         this.flashDamage();
 
         // Play damage sound if available
         if (this.audioSystem) {
             this.audioSystem.playDamageSound();
         }
-
-        if (this.health <= 0) {
-            console.log("Health reached zero - Game Over!");
-            // Game over will be triggered by the UI system
-        }
     }
 
     flashDamage() {
-        // Flash the player mesh red to indicate damage
-        const originalColor = this.mesh.material.diffuseColor.clone();
-        this.mesh.material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Bright red
+        // Store current sprite visibility state
+        const wasUpVisible = this.spriteUp.isVisible;
+        const wasDownVisible = this.spriteDown.isVisible;
+        const currentDirection = this.currentDirection;
+
+        console.log(`[FLASH_DAMAGE] Current direction: ${currentDirection}`);
+        console.log(`[FLASH_DAMAGE] Sprite UP visible before flash: ${wasUpVisible}`);
+        console.log(`[FLASH_DAMAGE] Sprite DOWN visible before flash: ${wasDownVisible}`);
+
+        // Flash the player sprites red to indicate damage
+        const flashColor = new BABYLON.Color3(1, 0.3, 0.3); // Red tint
+
+        // Store original colors
+        const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
+        const originalDownColor = this.spriteDown.color ? this.spriteDown.color.clone() : new BABYLON.Color3(1, 1, 1);
+
+        // Apply red tint
+        this.spriteUp.color = flashColor;
+        this.spriteDown.color = flashColor;
+
+        // CRITICAL: Force the correct sprite to be visible
+        if (this.currentDirection === "up") {
+            this.spriteUp.isVisible = true;
+            this.spriteDown.isVisible = false;
+        } else {
+            this.spriteDown.isVisible = true;
+            this.spriteUp.isVisible = false;
+        }
+
+        console.log(`[FLASH_DAMAGE] Forced sprite visibility during flash`);
 
         // Return to original color after a short time
         setTimeout(() => {
-            if (this.mesh && this.mesh.material) {
-                this.mesh.material.diffuseColor = originalColor;
+            // Restore original colors
+            if (this.spriteUp) this.spriteUp.color = originalUpColor;
+            if (this.spriteDown) this.spriteDown.color = originalDownColor;
+
+            // CRITICAL: Ensure correct sprite visibility
+            if (this.currentDirection === "up") {
+                this.spriteUp.isVisible = true;
+                this.spriteDown.isVisible = false;
+            } else {
+                this.spriteDown.isVisible = true;
+                this.spriteUp.isVisible = false;
             }
+
+            console.log(`[FLASH_DAMAGE] Restored sprite visibility after flash`);
         }, 200);
     }
 
     update(deltaTime) {
-        // Update jump cooldown
-        if (!this.canJump) {
-            this.jumpCooldown -= deltaTime;
-            if (this.jumpCooldown <= 0) {
-                this.canJump = true;
-                this.jumpCooldown = 0;
-            }
-        }
+        try {
+            // CRITICAL: Force sprite visibility at the beginning of every update
+            this.enforceCorrectSpriteVisibility();
 
-        // Update run duration and cooldown
-        if (this.isRunning) {
-            this.runTimeLeft -= deltaTime;
-            if (this.runTimeLeft <= 0) {
-                this.isRunning = false;
-                this.speed = this.baseSpeed;
-                this.runCooldown = RUN_COOLDOWN;
+            // Update jump cooldown
+            if (!this.canJump) {
+                this.jumpCooldown -= deltaTime;
+                if (this.jumpCooldown <= 0) {
+                    this.canJump = true;
+                    this.jumpCooldown = 0;
+                }
             }
-        } else if (this.runCooldown > 0) {
-            this.runCooldown -= deltaTime;
-        }
 
-        // Update fart mode
-        if (this.inFartMode) {
-            this.fartTimeLeft -= deltaTime;
-            if (this.fartTimeLeft <= 0) {
-                this.deactivateFartMode();
+            // Update run duration and cooldown
+            if (this.isRunning) {
+                this.runTimeLeft -= deltaTime;
+                if (this.runTimeLeft <= 0) {
+                    this.isRunning = false;
+                    this.speed = this.baseSpeed;
+                    this.runCooldown = RUN_COOLDOWN;
+                }
+            } else if (this.runCooldown > 0) {
+                this.runCooldown -= deltaTime;
             }
-        }
 
-        // Update active breath attacks
-        for (let i = this.activeBreathAttacks.length - 1; i >= 0; i--) {
-            const attack = this.activeBreathAttacks[i];
-            attack.move();
-
-            // Remove disposed attacks
-            if (attack.isDisposed) {
-                this.activeBreathAttacks.splice(i, 1);
+            // Update fart mode
+            if (this.inFartMode) {
+                this.fartTimeLeft -= deltaTime;
+                if (this.fartTimeLeft <= 0) {
+                    this.deactivateFartMode();
+                }
             }
+
+            // Update active breath attacks
+            for (let i = this.activeBreathAttacks.length - 1; i >= 0; i--) {
+                const attack = this.activeBreathAttacks[i];
+                attack.move();
+
+                // Remove disposed attacks
+                if (attack.isDisposed) {
+                    this.activeBreathAttacks.splice(i, 1);
+                }
+            }
+
+            // CRITICAL: Force sprite visibility at the end of every update as well
+            this.enforceCorrectSpriteVisibility();
+        } catch (error) {
+            console.error(`[UPDATE] Error in player update:`, error);
         }
+    }
+
+    // CRITICAL: New method to enforce correct sprite visibility
+    enforceCorrectSpriteVisibility() {
+        try {
+            // Force the mesh to be invisible
+            if (this.mesh) {
+                this.mesh.isVisible = false;
+                this.mesh.visibility = 0;
+            }
+
+            // Force the correct sprite to be visible
+            if (this.currentDirection === "up") {
+                if (this.spriteUp) {
+                    this.spriteUp.isVisible = true;
+                    this.spriteUp.renderingGroupId = 2;
+                    this.spriteUp.depth = 0.1;
+
+                    // Set the correct position with proper height
+                    if (this.mesh) {
+                        const spritePos = this.mesh.position.clone();
+                        spritePos.y = 1; // Set the correct height
+                        this.spriteUp.position = spritePos;
+                    }
+                }
+
+                if (this.spriteDown) {
+                    this.spriteDown.isVisible = false;
+                }
+            } else {
+                if (this.spriteDown) {
+                    this.spriteDown.isVisible = true;
+                    this.spriteDown.renderingGroupId = 2;
+                    this.spriteDown.depth = 0.1;
+
+                    // Set the correct position with proper height
+                    if (this.mesh) {
+                        const spritePos = this.mesh.position.clone();
+                        spritePos.y = 1; // Set the correct height
+                        this.spriteDown.position = spritePos;
+                    }
+                }
+
+                if (this.spriteUp) {
+                    this.spriteUp.isVisible = false;
+                }
+            }
+        } catch (error) {
+            console.error(`[ENFORCE_VISIBILITY] Error enforcing sprite visibility:`, error);
+        }
+    }
+
+    setupSpriteAnimations() {
+        // Set up sprite animations for both up and down sprites
+
+        // Each sprite has 4 frames (0-3)
+        // We'll use a custom animation approach for more control
+        this.animationFrame = 0;
+        this.lastFrameTime = 0;
+        this.frameDuration = 250; // 250ms per frame = 4 frames per second
+        this.isAnimating = false;
+
+        // Set initial frame
+        this.spriteUp.cellIndex = 0;
+        this.spriteDown.cellIndex = 0;
+
+        // Disable automatic animation
+        this.spriteUp.stopAnimation();
+        this.spriteDown.stopAnimation();
+
+        // Add an observer to update sprite positions, handle animation, and ensure visibility
+        this.spriteUpdateObserver = this.scene.onBeforeRenderObservable.add(() => {
+            // Make sure sprites exist
+            if (!this.spriteUp || !this.spriteDown || !this.mesh) return;
+
+            try {
+                // CRITICAL: Use the dedicated method to enforce correct sprite visibility
+                this.enforceCorrectSpriteVisibility();
+
+                // STEP 3: Handle custom animation timing
+                const currentTime = Date.now();
+
+                // Check if we should stop animating
+                if (this.isMoving && currentTime - this.lastMoveTime > 100) {
+                    this.isMoving = false;
+                    this.isAnimating = false;
+                    console.log("Stopping animation, player not moving");
+                }
+
+                // Update animation frame if we're animating
+                if (this.isAnimating && currentTime - this.lastFrameTime > this.frameDuration) {
+                    // Time to advance to next frame
+                    this.animationFrame = (this.animationFrame + 1) % 4; // Loop through 0-3
+                    this.lastFrameTime = currentTime;
+
+                    // Update the current sprite's cell index
+                    if (this.currentDirection === "up") {
+                        this.spriteUp.cellIndex = this.animationFrame;
+                    } else {
+                        this.spriteDown.cellIndex = this.animationFrame;
+                    }
+
+                    console.log(`Animation frame updated to ${this.animationFrame}`);
+                }
+            } catch (error) {
+                console.error("Error in sprite update observer:", error);
+            }
+        });
     }
 
     dispose() {
@@ -867,9 +1297,13 @@ class Player {
             attack.dispose();
         }
 
-        // Dispose the direction indicator
-        if (this.directionIndicator) {
-            this.directionIndicator.dispose();
+        // Dispose the sprite managers and sprites
+        if (this.spriteManagerUp) {
+            this.spriteManagerUp.dispose();
+        }
+
+        if (this.spriteManagerDown) {
+            this.spriteManagerDown.dispose();
         }
 
         // Dispose the fart range indicator
@@ -880,6 +1314,11 @@ class Player {
         // Remove any observers
         if (this.fartRangeUpdateObserver) {
             this.scene.onBeforeRenderObservable.remove(this.fartRangeUpdateObserver);
+        }
+
+        // Remove sprite update observer
+        if (this.spriteUpdateObserver) {
+            this.scene.onBeforeRenderObservable.remove(this.spriteUpdateObserver);
         }
 
         // Dispose the mesh

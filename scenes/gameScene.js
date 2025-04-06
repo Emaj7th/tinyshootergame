@@ -64,6 +64,10 @@ async function createGameScene(scene, canvas) {
     // Initialize the player
     const player = new Player(scene, audioSystem);
 
+    // Ensure player starts with full health
+    player.health = player.maxHealth;
+    console.log("Player health reset to maximum:", player.health);
+
     // Initialize zombies array
     const zombies = [];
 
@@ -114,8 +118,13 @@ async function createGameScene(scene, canvas) {
 
     // Set up the game loop
     scene.onBeforeRenderObservable.add(() => {
+        // Skip updates if input system is paused
+        if (inputSystem.isPaused) {
+            return;
+        }
+
         const currentTime = Date.now();
-        const deltaTime = (currentTime - lastTime) / 1000; // Convert to seconds
+        const deltaTime = (currentTime - lastTime) / 1000;
         lastTime = currentTime;
 
         // Update player
@@ -164,7 +173,7 @@ async function createGameScene(scene, canvas) {
         }
 
         // Spawn new zombies periodically
-        if (currentTime - lastZombieSpawnTime > 2000) { // Every 2 seconds (increased frequency)
+        if (currentTime - lastZombieSpawnTime > 2000) { // Every 2 seconds
             // In horde mode, spawn more zombies
             if (scene.isHordeModeActive) {
                 // Spawn 3 zombies in horde mode

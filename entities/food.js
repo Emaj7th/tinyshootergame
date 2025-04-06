@@ -49,15 +49,18 @@ class Food {
 
     createMesh() {
         // Create a plane for the food sprite
-        // Size 0.8 is a good starting point - can be adjusted based on player size
         const size = 1;
         this.mesh = BABYLON.MeshBuilder.CreatePlane(`food-${this.type}`, {
             width: size,
             height: size
         }, this.scene);
 
-        // Position the food
+        // Position the food slightly lower than the player
         this.mesh.position = this.position.clone();
+        this.mesh.position.y = 0.5; // Lower y position
+
+        // Set rendering group to ensure it renders before player
+        this.mesh.renderingGroupId = 1; // Middle rendering group (player sprites are 2)
 
         // Make the plane always face the camera (billboarding)
         this.mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
@@ -156,36 +159,76 @@ class Food {
     }
 
     dispose() {
-        // Remove the animation observers
-        if (this.animationObserver) {
-            this.scene.onBeforeRenderObservable.remove(this.animationObserver);
-        }
+        try {
+            console.log(`[FOOD_DISPOSE] Starting disposal of food: ${this.type}`);
 
-        if (this.rotationObserver) {
-            this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
-        }
+            // Remove the animation observers
+            if (this.animationObserver) {
+                this.scene.onBeforeRenderObservable.remove(this.animationObserver);
+                console.log(`[FOOD_DISPOSE] Removed animation observer`);
+            }
 
-        // Clear the disappear timer
-        if (this.disappearTimeout) {
-            clearTimeout(this.disappearTimeout);
-        }
+            if (this.rotationObserver) {
+                this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
+                console.log(`[FOOD_DISPOSE] Removed rotation observer`);
+            }
 
-        // Clear the fade interval
-        if (this.fadeInterval) {
-            clearInterval(this.fadeInterval);
-        }
+            // Clear the disappear timer
+            if (this.disappearTimeout) {
+                clearTimeout(this.disappearTimeout);
+                console.log(`[FOOD_DISPOSE] Cleared disappear timeout`);
+            }
 
-        // Dispose the particle system
-        if (this.particleSystem) {
-            this.particleSystem.stop();
-            this.particleSystem.dispose();
-        }
+            // Clear the fade interval
+            if (this.fadeInterval) {
+                clearInterval(this.fadeInterval);
+                console.log(`[FOOD_DISPOSE] Cleared fade interval`);
+            }
 
-        // Dispose the mesh
-        if (this.mesh) {
-            this.mesh.dispose();
+            // Dispose the particle system
+            if (this.particleSystem) {
+                this.particleSystem.stop();
+                this.particleSystem.dispose();
+                console.log(`[FOOD_DISPOSE] Disposed particle system`);
+            }
+
+            // CRITICAL: First make the mesh invisible before disposing
+            if (this.mesh) {
+                // Make the mesh invisible first
+                this.mesh.isVisible = false;
+                this.mesh.visibility = 0;
+
+                // Detach from any parent
+                if (this.mesh.parent) {
+                    this.mesh.parent = null;
+                }
+
+                // Remove any materials
+                if (this.mesh.material) {
+                    this.mesh.material.dispose();
+                    this.mesh.material = null;
+                }
+
+                // Dispose the mesh in a safe way
+                setTimeout(() => {
+                    try {
+                        if (this.mesh) {
+                            this.mesh.dispose();
+                            console.log(`[FOOD_DISPOSE] Disposed mesh`);
+                        }
+                    } catch (error) {
+                        console.error(`[FOOD_DISPOSE] Error disposing mesh:`, error);
+                    }
+                }, 100);
+            }
+
+            console.log(`[FOOD_DISPOSE] Completed disposal of food: ${this.type}`);
+        } catch (error) {
+            console.error(`[FOOD_DISPOSE] Error during disposal:`, error);
         }
     }
 }
 
 export { Food };
+
+
