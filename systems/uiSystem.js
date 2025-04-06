@@ -21,14 +21,73 @@ class UISystem {
         // Food inventory display
         this.createFoodInventoryDisplay();
 
-        // Cooldown indicators
-        this.createCooldownIndicators();
+        // Create zombie kill counter
+        this.createZombieKillCounter();
 
-        // Breath range indicator
-        this.createBreathRangeIndicator();
+        // Create bottom info bar with all indicators
+        this.createBottomInfoBar();
 
         // Game over screen (hidden initially)
         this.createGameOverScreen();
+
+        // Create HORDE MODE notification (hidden initially)
+        this.createHordeModeNotification();
+    }
+
+    createZombieKillCounter() {
+        // Create a container for zombie kill counter
+        this.killCounterContainer = new BABYLON.GUI.StackPanel();
+        this.killCounterContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.killCounterContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+        this.killCounterContainer.top = "70px"; // Position below health
+        this.killCounterContainer.left = "20px";
+        this.scene.advancedTexture.addControl(this.killCounterContainer);
+
+        // Zombie kill counter
+        this.killCounterText = new BABYLON.GUI.TextBlock();
+        this.killCounterText.text = "Zombies Killed: 0";
+        this.killCounterText.color = "white";
+        this.killCounterText.fontSize = 20;
+        this.killCounterText.height = "30px";
+        this.killCounterContainer.addControl(this.killCounterText);
+    }
+
+    createHordeModeNotification() {
+        // Create a notification for HORDE MODE
+        this.hordeModeNotification = new BABYLON.GUI.TextBlock();
+        this.hordeModeNotification.text = "HORDE MODE!";
+        this.hordeModeNotification.color = "red";
+        this.hordeModeNotification.fontSize = 60;
+        this.hordeModeNotification.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        this.hordeModeNotification.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+        this.hordeModeNotification.isVisible = false;
+        this.scene.advancedTexture.addControl(this.hordeModeNotification);
+
+        // Create a temporary message text block for notifications
+        this.temporaryMessage = new BABYLON.GUI.TextBlock();
+        this.temporaryMessage.text = "";
+        this.temporaryMessage.color = "yellow";
+        this.temporaryMessage.fontSize = 30;
+        this.temporaryMessage.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        this.temporaryMessage.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+        this.temporaryMessage.top = "100px"; // Below the horde mode notification
+        this.temporaryMessage.isVisible = false;
+        this.scene.advancedTexture.addControl(this.temporaryMessage);
+    }
+
+    showTemporaryMessage(message, duration = 2000) {
+        // Show a temporary message on screen
+        this.temporaryMessage.text = message;
+        this.temporaryMessage.isVisible = true;
+
+        // Hide after duration
+        if (this._tempMessageTimeout) {
+            clearTimeout(this._tempMessageTimeout);
+        }
+
+        this._tempMessageTimeout = setTimeout(() => {
+            this.temporaryMessage.isVisible = false;
+        }, duration);
     }
 
     createHealthDisplay() {
@@ -78,7 +137,7 @@ class UISystem {
         this.foodList.text = "No items";
         this.foodList.color = "white";
         this.foodList.fontSize = 16;
-        this.foodList.height = "100px";
+        this.foodList.height = "120px";
         this.foodContainer.addControl(this.foodList);
 
         // Consumed foods counter
@@ -90,74 +149,116 @@ class UISystem {
         this.foodContainer.addControl(this.consumedFoodsText);
     }
 
-    createCooldownIndicators() {
-        // Create a container for cooldown indicators
-        this.cooldownContainer = new BABYLON.GUI.StackPanel();
-        this.cooldownContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-        this.cooldownContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-        this.cooldownContainer.bottom = "20px";
-        this.cooldownContainer.left = "20px";
-        this.scene.advancedTexture.addControl(this.cooldownContainer);
+    createBottomInfoBar() {
+        // Create a grid container for the bottom info bar
+        this.bottomInfoBar = new BABYLON.GUI.Grid();
+        this.bottomInfoBar.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        this.bottomInfoBar.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+        this.bottomInfoBar.bottom = "20px";
+        this.bottomInfoBar.width = "90%";
+        this.bottomInfoBar.height = "80px";
+        this.bottomInfoBar.addColumnDefinition(0.25); // Jump
+        this.bottomInfoBar.addColumnDefinition(0.25); // Run
+        this.bottomInfoBar.addColumnDefinition(0.25); // Breath Range
+        this.bottomInfoBar.addColumnDefinition(0.25); // Fart Mode
+        this.scene.advancedTexture.addControl(this.bottomInfoBar);
 
-        // Jump cooldown
+        // Create individual containers for each element
+        this.createJumpIndicator();
+        this.createRunIndicator();
+        this.createBreathRangeIndicator();
+        this.createFartModeIndicator();
+    }
+
+    createJumpIndicator() {
+        // Create a container for jump cooldown
+        const jumpContainer = new BABYLON.GUI.StackPanel();
+        jumpContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        jumpContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+
+        // Jump cooldown text
         this.jumpCooldownText = new BABYLON.GUI.TextBlock();
         this.jumpCooldownText.text = "Jump: Ready";
         this.jumpCooldownText.color = "white";
         this.jumpCooldownText.fontSize = 16;
         this.jumpCooldownText.height = "30px";
-        this.cooldownContainer.addControl(this.jumpCooldownText);
+        jumpContainer.addControl(this.jumpCooldownText);
 
-        // Run cooldown
+        // Add to grid
+        this.bottomInfoBar.addControl(jumpContainer, 0, 0);
+    }
+
+    createRunIndicator() {
+        // Create a container for run cooldown
+        const runContainer = new BABYLON.GUI.StackPanel();
+        runContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        runContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+
+        // Run cooldown text
         this.runCooldownText = new BABYLON.GUI.TextBlock();
         this.runCooldownText.text = "Run: Ready";
         this.runCooldownText.color = "white";
         this.runCooldownText.fontSize = 16;
         this.runCooldownText.height = "30px";
-        this.cooldownContainer.addControl(this.runCooldownText);
+        runContainer.addControl(this.runCooldownText);
 
-        // Fart mode indicator
-        this.fartModeText = new BABYLON.GUI.TextBlock();
-        this.fartModeText.text = "Fart Mode: Inactive";
-        this.fartModeText.color = "white";
-        this.fartModeText.fontSize = 16;
-        this.fartModeText.height = "30px";
-        this.cooldownContainer.addControl(this.fartModeText);
+        // Add to grid
+        this.bottomInfoBar.addControl(runContainer, 0, 1);
     }
 
     createBreathRangeIndicator() {
-        // Create a container for the breath range indicator
-        this.breathRangeContainer = new BABYLON.GUI.StackPanel();
-        this.breathRangeContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-        this.breathRangeContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-        this.breathRangeContainer.bottom = "20px";
-        this.scene.advancedTexture.addControl(this.breathRangeContainer);
+        // Create a container for breath range
+        const breathContainer = new BABYLON.GUI.StackPanel();
+        breathContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        breathContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
 
-        // Create a breath range indicator text
+        // Breath range text
         this.breathRangeText = new BABYLON.GUI.TextBlock();
         this.breathRangeText.text = `Breath Range: ${this.player.breathRange.toFixed(1)}`;
         this.breathRangeText.color = "white";
-        this.breathRangeText.fontSize = 18;
+        this.breathRangeText.fontSize = 16;
         this.breathRangeText.height = "25px";
-        this.breathRangeContainer.addControl(this.breathRangeText);
+        breathContainer.addControl(this.breathRangeText);
 
         // Create a visual indicator bar
         this.breathRangeBar = new BABYLON.GUI.Rectangle();
-        this.breathRangeBar.width = "200px";
+        this.breathRangeBar.width = "150px";
         this.breathRangeBar.height = "10px";
         this.breathRangeBar.background = "blue";
         this.breathRangeBar.color = "white";
         this.breathRangeBar.cornerRadius = 5;
-        this.breathRangeContainer.addControl(this.breathRangeBar);
+        breathContainer.addControl(this.breathRangeBar);
 
         // Create max range indicator
         this.maxRangeBar = new BABYLON.GUI.Rectangle();
-        this.maxRangeBar.width = "200px";
+        this.maxRangeBar.width = "150px";
         this.maxRangeBar.height = "10px";
         this.maxRangeBar.background = "transparent";
         this.maxRangeBar.color = "white";
         this.maxRangeBar.thickness = 1;
         this.maxRangeBar.cornerRadius = 5;
-        this.breathRangeContainer.addControl(this.maxRangeBar);
+        breathContainer.addControl(this.maxRangeBar);
+
+        // Add to grid
+        this.bottomInfoBar.addControl(breathContainer, 0, 2);
+    }
+
+    createFartModeIndicator() {
+        // Create a container for fart mode
+        const fartContainer = new BABYLON.GUI.StackPanel();
+        fartContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        fartContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+
+        // Fart mode text
+        this.fartModeText = new BABYLON.GUI.TextBlock();
+        this.fartModeText.text = "Fart Mode: Inactive";
+        this.fartModeText.color = "white";
+        this.fartModeText.fontSize = 16;
+        this.fartModeText.height = "30px";
+        fartContainer.addControl(this.fartModeText);
+
+        // Add to grid
+        this.bottomInfoBar.addControl(fartContainer, 0, 3);
     }
 
     createGameOverScreen() {
@@ -213,10 +314,50 @@ class UISystem {
         // Update breath range indicator
         this.updateBreathRangeIndicator();
 
+        // Update zombie kill counter
+        this.updateZombieKillCounter();
+
+        // Update horde mode notification
+        this.updateHordeModeNotification();
+
         // Check for game over - only if health is actually 0 or less and game over hasn't been shown yet
         if (this.player.health <= 0 && !this.gameOverShown) {
             console.log("Game over triggered. Player health:", this.player.health);
             this.showGameOver();
+        }
+    }
+
+    updateZombieKillCounter() {
+        if (this.killCounterText && this.scene.zombiesKilled !== undefined) {
+            this.killCounterText.text = `Zombies Killed: ${this.scene.zombiesKilled}`;
+        }
+    }
+
+    updateHordeModeNotification() {
+        // Show HORDE MODE notification when breath range reaches maximum
+        if (this.player.breathRange >= MAX_BREATH_RANGE && !this.hordeModeActive) {
+            this.showHordeModeNotification();
+            this.hordeModeActive = true;
+        } else if (this.player.breathRange < MAX_BREATH_RANGE && this.hordeModeActive) {
+            this.hideHordeModeNotification();
+            this.hordeModeActive = false;
+        }
+    }
+
+    showHordeModeNotification() {
+        if (this.hordeModeNotification) {
+            this.hordeModeNotification.isVisible = true;
+
+            // Hide after 3 seconds
+            setTimeout(() => {
+                this.hideHordeModeNotification();
+            }, 3000);
+        }
+    }
+
+    hideHordeModeNotification() {
+        if (this.hordeModeNotification) {
+            this.hordeModeNotification.isVisible = false;
         }
     }
 

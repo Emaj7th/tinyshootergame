@@ -1,4 +1,11 @@
-import { ZOMBIE_SPEED } from '../utils/constants.js';
+import {
+    ZOMBIE_SPEED,
+    ZOMBIE_MIN_HEALTH,
+    ZOMBIE_MAX_HEALTH,
+    ELITE_ZOMBIE_MIN_HEALTH,
+    ELITE_ZOMBIE_MAX_HEALTH,
+    ELITE_ZOMBIE_CHANCE
+} from '../utils/constants.js';
 
 class Zombie {
     constructor(scene, player, audioSystem, position = null) {
@@ -7,11 +14,36 @@ class Zombie {
         this.audioSystem = audioSystem;
         this.isDead = false;
 
+        // Determine if this is an elite zombie
+        this.isElite = Math.random() < ELITE_ZOMBIE_CHANCE;
+
+        // Set health based on zombie type
+        if (this.isElite) {
+            // Elite zombie with higher health
+            this.health = Math.floor(Math.random() * (ELITE_ZOMBIE_MAX_HEALTH - ELITE_ZOMBIE_MIN_HEALTH + 1)) + ELITE_ZOMBIE_MIN_HEALTH;
+        } else {
+            // Regular zombie with normal health
+            this.health = Math.floor(Math.random() * (ZOMBIE_MAX_HEALTH - ZOMBIE_MIN_HEALTH + 1)) + ZOMBIE_MIN_HEALTH;
+        }
+
+        console.log(`Spawned ${this.isElite ? 'elite' : 'regular'} zombie with ${this.health} health`);
+
         // Create zombie mesh
         this.mesh = BABYLON.MeshBuilder.CreateBox("zombie", {height: 2, width: 1, depth: 1}, scene);
         this.mesh.material = new BABYLON.StandardMaterial("zombieMat", scene);
-        this.mesh.material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.2); // Green for zombies
-        this.mesh.material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Slight glow
+
+        if (this.isElite) {
+            // Darker color for elite zombies
+            this.mesh.material.diffuseColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Darker green for elite zombies
+            this.mesh.material.emissiveColor = new BABYLON.Color3(0.05, 0.15, 0.05); // Slight glow
+
+            // Make elite zombies slightly larger
+            this.mesh.scaling = new BABYLON.Vector3(1.2, 1.2, 1.2);
+        } else {
+            // Regular zombie color
+            this.mesh.material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.2); // Green for regular zombies
+            this.mesh.material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Slight glow
+        }
 
         // Set position
         if (position) {
@@ -97,10 +129,45 @@ class Zombie {
         this.mesh.position.addInPlace(direction.scale(this.speed));
     }
 
-    die() {
+    takeDamage(damage = 1) {
+        if (this.isDead) return;
+
+        // Reduce health
+        this.health -= damage;
+        console.log(`Zombie took damage. Health now: ${this.health}`);
+
+        // Flash the zombie to indicate damage
+        this.flashDamage();
+
+        // Check if zombie is dead
+        if (this.health <= 0) {
+            this.die(true); // true indicates it was killed by player
+        }
+    }
+
+    flashDamage() {
+        // Flash the zombie mesh red to indicate damage
+        const originalColor = this.mesh.material.diffuseColor.clone();
+        this.mesh.material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Bright red
+
+        // Return to original color after a short time
+        setTimeout(() => {
+            if (this.mesh && this.mesh.material) {
+                this.mesh.material.diffuseColor = originalColor;
+            }
+        }, 100);
+    }
+
+    die(killedByPlayer = false) {
         if (this.isDead) return;
 
         this.isDead = true;
+
+        // Only increment kill count if killed by player
+        if (killedByPlayer && this.scene && this.scene.zombiesKilled !== undefined) {
+            this.scene.zombiesKilled++;
+            console.log(`Zombie killed! Total: ${this.scene.zombiesKilled}`);
+        }
 
         // Create explosion effect
         this.createDeathExplosion();

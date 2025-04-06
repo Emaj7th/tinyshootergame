@@ -2,7 +2,7 @@ import { FART_RANGE } from '../utils/constants.js';
 
 class CollisionSystem {
     constructor(scene, player, zombies = [], foods = []) {
-        this.scene = scene;
+        this.scene = scene; // Store scene reference for zombie kill tracking
         this.player = player;
         this.zombies = zombies;
         this.foods = foods;
@@ -111,16 +111,23 @@ class CollisionSystem {
 
                     if (distance < collisionThreshold) {
                         console.log("Breath attack hit zombie! Distance:", distance);
-                        zombie.die();
-                        this.zombiesToRemove.push(zombie);
+                        zombie.takeDamage(1);
+
+                        if (zombie.health <= 0) {
+                            this.zombiesToRemove.push(zombie);
+                        }
+
                         continue; // Skip to next zombie
                     }
 
                     // Also try the built-in intersection check as a backup
                     if (attack.mesh.intersectsMesh(zombie.mesh, false)) {
                         console.log("Breath attack intersection with zombie!");
-                        zombie.die();
-                        this.zombiesToRemove.push(zombie);
+                        zombie.takeDamage(1);
+
+                        if (zombie.health <= 0) {
+                            this.zombiesToRemove.push(zombie);
+                        }
                     }
                 } catch (error) {
                     console.error("Error in breath-zombie collision detection:", error);
@@ -141,9 +148,10 @@ class CollisionSystem {
                     zombie.mesh.position
                 );
 
-                // If zombie is within fart range, kill it
+                // If zombie is within fart range, deal massive damage (instant kill)
                 if (distance <= FART_RANGE) {
-                    zombie.die();
+                    // Fart is powerful enough to kill any zombie instantly
+                    zombie.takeDamage(100); // Large damage value to ensure death
                     this.zombiesToRemove.push(zombie);
                 }
             }

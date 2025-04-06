@@ -33,12 +33,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // Look down at the scene
         camera.rotation.x = Math.PI / 2;
 
-        // Add lighting
+        // Add lighting - reduced brightness to prevent glare
         const light = new BABYLON.HemisphericLight('light1', new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.8;
+        light.intensity = 0.6; // Reduced from 0.8
 
         const directionalLight = new BABYLON.DirectionalLight("directionalLight", new BABYLON.Vector3(0.5, -1, 0.5), scene);
-        directionalLight.intensity = 0.5;
+        directionalLight.intensity = 0.3; // Reduced from 0.5
 
         // Make sure canvas is properly set up for input
         canvas.focus();

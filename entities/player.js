@@ -11,13 +11,16 @@ import {
     PLAYER_MAX_HEALTH,
     FART_THRESHOLD,
     FART_DURATION,
-    FART_RANGE
+    FART_RANGE,
+    SPECIAL_FOOD_TYPE
 } from '../utils/constants.js';
 
 class Player {
     constructor(scene, audioSystem) {
         this.scene = scene;
         this.audioSystem = audioSystem;
+
+        // Store reference to scene for updating zombie speed and horde mode
 
         // Create player mesh
         this.mesh = BABYLON.MeshBuilder.CreateBox("player", {height: 2, width: 1, depth: 1}, scene);
@@ -58,11 +61,14 @@ class Player {
         this._lastAttackTime = 0; // Track last attack time for rate limiting
 
         // Food and fart properties
-        this.collectedFoods = [];
+        // Start with 1 piece of food in inventory
+        this.collectedFoods = ['sandwich']; // Start with a sandwich
         this.consumedFoods = 0;
         this.inFartMode = false;
         this.fartTimeLeft = 0;
         this.fartCloud = null;
+
+        console.log("Player initialized with 1 food item in inventory:", this.collectedFoods[0]);
 
         // Create a particle system for the fart cloud
         this.createFartParticleSystem();
@@ -139,10 +145,91 @@ class Player {
 
             // Apply current speed to movement
             const scaledDirection = direction.scale(this.speed);
-            this.mesh.position.addInPlace(scaledDirection);
+            const newPosition = this.mesh.position.clone();
+            newPosition.addInPlace(scaledDirection);
 
-            console.log("Player moved. Position:", this.mesh.position.toString());
+            // Check if the new position is within the ground boundaries
+            const groundSize = 25; // Half the size of the ground (50/2)
+
+            // Restrict movement to stay within the ground boundaries
+            if (newPosition.x < -groundSize) newPosition.x = -groundSize;
+            if (newPosition.x > groundSize) newPosition.x = groundSize;
+            if (newPosition.z < -groundSize) newPosition.z = -groundSize;
+            if (newPosition.z > groundSize) newPosition.z = groundSize;
+
+            // Check for collisions with obstacles
+            if (!this.checkObstacleCollision(newPosition)) {
+                // No collision, update the position
+                this.mesh.position = newPosition;
+                console.log("Player moved. Position:", this.mesh.position.toString());
+            } else {
+                console.log("Movement blocked by obstacle");
+            }
         }
+    }
+
+    checkObstacleCollision(newPosition) {
+        // If there are no obstacles in the scene, return false (no collision)
+        if (!this.scene.obstacles || this.scene.obstacles.length === 0) {
+            return false;
+        }
+
+        // Player collision parameters
+        const playerRadius = 0.7; // Slightly smaller than the player width/depth
+
+        // Check each obstacle
+        for (const obstacle of this.scene.obstacles) {
+            // For TransformNode (car parent), we need to check its children
+            if (obstacle instanceof BABYLON.TransformNode) {
+                // Get the car body which is the main collision object
+                const carBody = obstacle.getChildren().find(child => child.name === "carBody");
+                if (!carBody) continue;
+
+                // Get car's world position
+                const carPosition = obstacle.getAbsolutePosition();
+
+                // Calculate car dimensions in world space
+                const carWidth = 3;
+                const carDepth = 6;
+
+                // Calculate car bounds with rotation
+                const angle = obstacle.rotation.y;
+                const cosAngle = Math.cos(angle);
+                const sinAngle = Math.sin(angle);
+
+                // Calculate the distance from player to car center
+                const dx = newPosition.x - carPosition.x;
+                const dz = newPosition.z - carPosition.z;
+
+                // Rotate the point to align with car's local coordinates
+                const localX = dx * cosAngle + dz * sinAngle;
+                const localZ = -dx * sinAngle + dz * cosAngle;
+
+                // Check if the point is inside the car's bounding box (plus player radius)
+                if (Math.abs(localX) < (carWidth / 2 + playerRadius) &&
+                    Math.abs(localZ) < (carDepth / 2 + playerRadius)) {
+                    return true; // Collision detected
+                }
+            }
+            // For regular meshes like the dumpster
+            else if (obstacle instanceof BABYLON.Mesh) {
+                // Get bounding box in world space
+                const boundingInfo = obstacle.getBoundingInfo();
+                const boundingBox = boundingInfo.boundingBox;
+
+                // Expand the bounding box by the player radius
+                const min = boundingBox.minimum;
+                const max = boundingBox.maximum;
+
+                // Check if the player's position is inside the expanded bounding box
+                if (newPosition.x >= min.x - playerRadius && newPosition.x <= max.x + playerRadius &&
+                    newPosition.z >= min.z - playerRadius && newPosition.z <= max.z + playerRadius) {
+                    return true; // Collision detected
+                }
+            }
+        }
+
+        return false; // No collision
     }
 
     setFacingDirection(direction) {
@@ -178,9 +265,27 @@ class Player {
             // Scale the direction by the jump distance
             jumpDirection = jumpDirection.normalize().scale(jumpDistance);
 
-            // Move the player in the jump direction
-            this.mesh.position.addInPlace(jumpDirection);
-            console.log("Jumped to position:", this.mesh.position.toString());
+            // Calculate new position
+            const newPosition = this.mesh.position.clone();
+            newPosition.addInPlace(jumpDirection);
+
+            // Check if the new position is within the ground boundaries
+            const groundSize = 25; // Half the size of the ground (50/2)
+
+            // Restrict movement to stay within the ground boundaries
+            if (newPosition.x < -groundSize) newPosition.x = -groundSize;
+            if (newPosition.x > groundSize) newPosition.x = groundSize;
+            if (newPosition.z < -groundSize) newPosition.z = -groundSize;
+            if (newPosition.z > groundSize) newPosition.z = groundSize;
+
+            // Check for collisions with obstacles
+            if (!this.checkObstacleCollision(newPosition)) {
+                // No collision, update the position
+                this.mesh.position = newPosition;
+                console.log("Jumped to position:", this.mesh.position.toString());
+            } else {
+                console.log("Jump blocked by obstacle");
+            }
 
             // Play jump sound
             if (this.audioSystem) {
@@ -384,16 +489,118 @@ class Player {
     }
 
     collectFood(foodType) {
-        this.collectedFoods.push(foodType);
-        console.log("Food collected:", foodType, "Total:", this.collectedFoods.length);
+        // Check if this is a special food that resets breath range
+        if (foodType === SPECIAL_FOOD_TYPE) {
+            console.log("Special food collected! Resetting breath range to", MIN_BREATH_RANGE);
 
-        // Flash the player mesh to indicate food collection
-        this.flashFoodPickup();
+            // Reset breath range to 5
+            const oldRange = this.breathRange;
+            this.breathRange = MIN_BREATH_RANGE;
 
-        // Play pickup sound
-        if (this.audioSystem) {
-            this.audioSystem.playPickupSound();
+            // Update zombie speed based on new breath range
+            this.updateZombieSpeed();
+
+            // Create a special effect for the breath reset
+            this.createBreathResetEffect();
+
+            // Play a special sound
+            if (this.audioSystem) {
+                this.audioSystem.playPickupSound();
+                // Play it twice for emphasis
+                setTimeout(() => {
+                    this.audioSystem.playPickupSound();
+                }, 200);
+            }
+        } else {
+            // Regular food collection
+            this.collectedFoods.push(foodType);
+            console.log("Food collected:", foodType, "Total:", this.collectedFoods.length);
+
+            // Flash the player mesh to indicate food collection
+            this.flashFoodPickup();
+
+            // Play pickup sound
+            if (this.audioSystem) {
+                this.audioSystem.playPickupSound();
+            }
         }
+    }
+
+    createBreathResetEffect() {
+        // Create a particle system for the breath reset effect
+        const particleSystem = new BABYLON.ParticleSystem("breathResetEffect", 500, this.scene);
+        particleSystem.particleTexture = new BABYLON.Texture("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", this.scene);
+
+        // Set particle system properties
+        particleSystem.emitter = this.mesh;
+        particleSystem.minEmitBox = new BABYLON.Vector3(-1, 0, -1);
+        particleSystem.maxEmitBox = new BABYLON.Vector3(1, 2, 1);
+
+        // Bright, sparkly colors
+        particleSystem.color1 = new BABYLON.Color4(0.7, 1.0, 1.0, 1.0); // Light blue
+        particleSystem.color2 = new BABYLON.Color4(1.0, 1.0, 1.0, 1.0); // White
+        particleSystem.colorDead = new BABYLON.Color4(0.5, 0.7, 1.0, 0.0); // Fade out to blue
+
+        // Larger particles for more visible effect
+        particleSystem.minSize = 0.2;
+        particleSystem.maxSize = 0.5;
+
+        // Longer lifetime for more persistent effect
+        particleSystem.minLifeTime = 0.5;
+        particleSystem.maxLifeTime = 2.0;
+
+        // High emit rate for dense effect
+        particleSystem.emitRate = 300;
+
+        // Blending for glow effect
+        particleSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+
+        // Upward gravity for rising effect
+        particleSystem.gravity = new BABYLON.Vector3(0, 1, 0);
+
+        // Direction for particles to emit outward
+        particleSystem.direction1 = new BABYLON.Vector3(-2, 0.5, -2);
+        particleSystem.direction2 = new BABYLON.Vector3(2, 2, 2);
+
+        // Angular speed for twinkling
+        particleSystem.minAngularSpeed = 0;
+        particleSystem.maxAngularSpeed = Math.PI * 2;
+
+        // Emission power for spread
+        particleSystem.minEmitPower = 1.0;
+        particleSystem.maxEmitPower = 3.0;
+
+        // Update speed
+        particleSystem.updateSpeed = 0.01;
+
+        // Start the particle system
+        particleSystem.start();
+
+        // Stop and dispose after a short time
+        setTimeout(() => {
+            particleSystem.stop();
+            setTimeout(() => {
+                particleSystem.dispose();
+            }, 2000); // Wait for particles to die out
+        }, 1000); // Emit for 1 second
+
+        // Flash the player mesh
+        this.flashBreathReset();
+    }
+
+    flashBreathReset() {
+        // Flash the player mesh blue to indicate breath reset
+        const originalColor = this.mesh.material.diffuseColor.clone();
+        this.mesh.material.diffuseColor = new BABYLON.Color3(0.3, 0.7, 1.0); // Blue
+        this.mesh.material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.5); // Blue glow
+
+        // Return to original color after a short time
+        setTimeout(() => {
+            if (this.mesh && this.mesh.material) {
+                this.mesh.material.diffuseColor = originalColor;
+                this.mesh.material.emissiveColor = new BABYLON.Color3(0, 0, 0); // No glow
+            }
+        }, 500);
     }
 
     flashFoodPickup() {
@@ -422,6 +629,9 @@ class Player {
             this.breathRange = Math.min(this.breathRange + BREATH_INCREASE_PER_FOOD, MAX_BREATH_RANGE);
             console.log("Breath range increased from", oldRange, "to", this.breathRange);
 
+            // Increase zombie speed based on breath range
+            this.updateZombieSpeed();
+
             // Check if we should enter fart mode
             if (this.consumedFoods >= FART_THRESHOLD && !this.inFartMode) {
                 this.activateFartMode();
@@ -440,6 +650,25 @@ class Player {
             console.log("No food to consume");
         }
         return null;
+    }
+
+    updateZombieSpeed() {
+        // Calculate a speed multiplier based on breath range
+        // As breath range increases from MIN to MAX, zombie speed increases by up to 100%
+        const speedIncreaseFactor = (this.breathRange - MIN_BREATH_RANGE) / (MAX_BREATH_RANGE - MIN_BREATH_RANGE);
+        const speedMultiplier = 1 + speedIncreaseFactor; // 1.0 to 2.0
+
+        // Update the zombie speed in the scene
+        if (this.scene && this.scene.updateZombieSpeed) {
+            this.scene.updateZombieSpeed(speedMultiplier);
+        }
+
+        // Check if we've reached max breath range for horde mode
+        if (this.breathRange >= MAX_BREATH_RANGE && this.scene && this.scene.setHordeModeActive) {
+            this.scene.setHordeModeActive(true);
+        } else if (this.breathRange < MAX_BREATH_RANGE && this.scene && this.scene.setHordeModeActive) {
+            this.scene.setHordeModeActive(false);
+        }
     }
 
     flashFoodConsumption() {
