@@ -26,8 +26,8 @@ async function createGameScene(scene, canvas) {
 
     // Load the ground texture
     const groundTexture = new BABYLON.Texture("assets/images/texture_ground.png", scene);
-    groundTexture.uScale = 10; // Tile the texture 10 times in the U direction
-    groundTexture.vScale = 10; // Tile the texture 10 times in the V direction
+    groundTexture.uScale = 5; // Tile the texture 5 times in the U direction (2x larger)
+    groundTexture.vScale = 5; // Tile the texture 5 times in the V direction (2x larger)
 
     // Apply the texture to the ground material
     groundMaterial.diffuseTexture = groundTexture;
@@ -268,13 +268,7 @@ function createObstacles(scene) {
         console.error("Error creating obstacles:", error);
     }
 
-    // Add a few more obstacles
-    // Dumpster
-    const dumpster = BABYLON.MeshBuilder.CreateBox("dumpster", {width: 3, height: 2, depth: 5}, scene);
-    dumpster.position = new BABYLON.Vector3(-18, 1, 5);
-    dumpster.material = new BABYLON.StandardMaterial("dumpsterMat", scene);
-    dumpster.material.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2); // Dark gray
-    scene.obstacles.push(dumpster);
+    // No additional obstacles needed
 }
 
 function createCarImage(scene, position, imagePath) {

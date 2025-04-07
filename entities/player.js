@@ -53,14 +53,15 @@ class Player {
             "playerManagerUp",
             "assets/images/character_up_spritemap.png",
             1, // Only one sprite in this manager
-            {width: 300, height: 400}, // Size of each sprite cell
+            {width: 350, height: 500}, // Size of each sprite cell
             scene
         );
 
         // Create the up-facing sprite
         this.spriteUp = new BABYLON.Sprite("playerUp", this.spriteManagerUp);
-        this.spriteUp.width = 2;
-        this.spriteUp.height = 2;
+        // Maintain proper aspect ratio (350:500 = 0.7:1)
+        this.spriteUp.width = 1.4;  // Adjusted for new dimensions
+        this.spriteUp.height = 2;   // Keep height the same
         this.spriteUp.position.y = 1;
         this.spriteUp.renderingGroupId = 2; // Highest rendering group to ensure visibility
         this.spriteUp.depth = 0.1; // Set depth to ensure it renders on top
@@ -78,14 +79,15 @@ class Player {
             "playerManagerDown",
             "assets/images/character_down_spritemap.png",
             1,
-            {width: 300, height: 400},
+            {width: 350, height: 500},
             scene
         );
 
         // Create the down-facing sprite
         this.spriteDown = new BABYLON.Sprite("playerDown", this.spriteManagerDown);
-        this.spriteDown.width = 2;
-        this.spriteDown.height = 2;
+        // Maintain proper aspect ratio (350:500 = 0.7:1)
+        this.spriteDown.width = 1.4;  // Adjusted for new dimensions
+        this.spriteDown.height = 2;   // Keep height the same
         this.spriteDown.position.y = 1;
         this.spriteDown.renderingGroupId = 2; // Highest rendering group to ensure visibility
         this.spriteDown.depth = 0.1; // Set depth to ensure it renders on top
@@ -260,11 +262,19 @@ class Player {
                     const upPos = this.mesh.position.clone();
                     upPos.y = 1; // Set the correct height
                     this.spriteUp.position = upPos;
+
+                    // Ensure correct dimensions
+                    this.spriteUp.width = 1.4;  // Maintain aspect ratio (350:500 = 0.7:1)
+                    this.spriteUp.height = 2;   // Keep height the same
                 }
                 if (this.spriteDown) {
                     const downPos = this.mesh.position.clone();
                     downPos.y = 1; // Set the correct height
                     this.spriteDown.position = downPos;
+
+                    // Ensure correct dimensions
+                    this.spriteDown.width = 1.4;  // Maintain aspect ratio (350:500 = 0.7:1)
+                    this.spriteDown.height = 2;   // Keep height the same
                 }
 
                 console.log("Player moved. Position:", this.mesh.position.toString());
@@ -287,33 +297,30 @@ class Player {
         for (const obstacle of this.scene.obstacles) {
             // For TransformNode (car parent), we need to check its children
             if (obstacle instanceof BABYLON.TransformNode) {
-                // Get the car body which is the main collision object
-                const carBody = obstacle.getChildren().find(child => child.name === "carBody");
-                if (!carBody) continue;
+                // Get the car collision box which is the main collision object
+                const carCollision = obstacle.getChildren().find(child => child.name === "carCollision");
+                if (!carCollision) {
+                    console.log("No collision box found for car:", obstacle.name);
+                    continue;
+                }
 
                 // Get car's world position
                 const carPosition = obstacle.getAbsolutePosition();
 
-                // Calculate car dimensions in world space
-                const carWidth = 3;
-                const carDepth = 6;
+                // Calculate car dimensions in world space (1/3 bigger than before)
+                const carWidth = 3.33;  // Width of collision box
+                const carDepth = 6.67;   // Depth of collision box
 
-                // Calculate car bounds with rotation
-                const angle = obstacle.rotation.y;
-                const cosAngle = Math.cos(angle);
-                const sinAngle = Math.sin(angle);
+                // Calculate car bounds with no rotation (all cars point down)
 
                 // Calculate the distance from player to car center
                 const dx = newPosition.x - carPosition.x;
                 const dz = newPosition.z - carPosition.z;
 
-                // Rotate the point to align with car's local coordinates
-                const localX = dx * cosAngle + dz * sinAngle;
-                const localZ = -dx * sinAngle + dz * cosAngle;
-
                 // Check if the point is inside the car's bounding box (plus player radius)
-                if (Math.abs(localX) < (carWidth / 2 + playerRadius) &&
-                    Math.abs(localZ) < (carDepth / 2 + playerRadius)) {
+                if (Math.abs(dx) < (carWidth / 2 + playerRadius) &&
+                    Math.abs(dz) < (carDepth / 2 + playerRadius)) {
+                    console.log("Car collision detected!");
                     return true; // Collision detected
                 }
             }
@@ -628,6 +635,10 @@ class Player {
             this.spriteUp.position.y = 1;
             this.spriteUp.renderingGroupId = 2;
             this.spriteUp.depth = 0.1;
+
+            // Ensure correct dimensions
+            this.spriteUp.width = 1.4;  // Maintain aspect ratio (350:500 = 0.7:1)
+            this.spriteUp.height = 2;   // Keep height the same
         } else {
             this.spriteDown.isVisible = true;
             this.spriteUp.isVisible = false;
@@ -635,6 +646,10 @@ class Player {
             this.spriteDown.position.y = 1;
             this.spriteDown.renderingGroupId = 2;
             this.spriteDown.depth = 0.1;
+
+            // Ensure correct dimensions
+            this.spriteDown.width = 1.4;  // Maintain aspect ratio (350:500 = 0.7:1)
+            this.spriteDown.height = 2;   // Keep height the same
         }
         console.log(`[FOOD] Forced sprite visibility immediately after food collection`);
 
@@ -648,6 +663,10 @@ class Player {
                 this.spriteUp.position.y = 1;
                 this.spriteUp.renderingGroupId = 2;
                 this.spriteUp.depth = 0.1;
+
+                // Ensure correct dimensions
+                this.spriteUp.width = 1.4;  // Maintain aspect ratio (350:500 = 0.7:1)
+                this.spriteUp.height = 2;   // Keep height the same
             } else {
                 this.spriteDown.isVisible = true;
                 this.spriteUp.isVisible = false;
@@ -655,6 +674,10 @@ class Player {
                 this.spriteDown.position.y = 1;
                 this.spriteDown.renderingGroupId = 2;
                 this.spriteDown.depth = 0.1;
+
+                // Ensure correct dimensions
+                this.spriteDown.width = 1.4;  // Maintain aspect ratio (350:500 = 0.7:1)
+                this.spriteDown.height = 2;   // Keep height the same
             }
             console.log(`[FOOD] Forced sprite visibility again after food collection`);
         }, 50); // Small delay to ensure this happens after any other changes
@@ -1202,6 +1225,10 @@ class Player {
                         const spritePos = this.mesh.position.clone();
                         spritePos.y = 1; // Set the correct height
                         this.spriteUp.position = spritePos;
+
+                        // Ensure correct dimensions
+                        this.spriteUp.width = 1.4;  // Maintain aspect ratio (350:500 = 0.7:1)
+                        this.spriteUp.height = 2;   // Keep height the same
                     }
                 }
 
@@ -1219,6 +1246,10 @@ class Player {
                         const spritePos = this.mesh.position.clone();
                         spritePos.y = 1; // Set the correct height
                         this.spriteDown.position = spritePos;
+
+                        // Ensure correct dimensions
+                        this.spriteDown.width = 1.4;  // Maintain aspect ratio (350:500 = 0.7:1)
+                        this.spriteDown.height = 2;   // Keep height the same
                     }
                 }
 
