@@ -44,7 +44,7 @@ class MenuScene {
 
         // Developer credit
         const creditText = new BABYLON.GUI.TextBlock();
-        creditText.text = "Vibe Coded Games ~ BY: Gideon Marken IV";
+        creditText.text = "Vibe Coded Games ~ BY: Gideon Marken";
         creditText.color = "white";
         creditText.fontSize = 24;
         creditText.height = "50px";

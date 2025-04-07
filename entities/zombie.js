@@ -28,22 +28,75 @@ class Zombie {
 
         console.log(`Spawned ${this.isElite ? 'elite' : 'regular'} zombie with ${this.health} health`);
 
-        // Create zombie mesh
-        this.mesh = BABYLON.MeshBuilder.CreateBox("zombie", {height: 2, width: 1, depth: 1}, scene);
-        this.mesh.material = new BABYLON.StandardMaterial("zombieMat", scene);
+        // Create an invisible mesh for collision detection
+        // Make the collision box 2x bigger to match the larger sprites
+        this.mesh = BABYLON.MeshBuilder.CreateBox("zombie", {height: 3.0, width: 2.0, depth: 1.0}, scene);
+        const zombieMaterial = new BABYLON.StandardMaterial("zombieMat", scene);
+        zombieMaterial.alpha = 0; // Make it invisible
+        this.mesh.material = zombieMaterial;
+        this.mesh.isVisible = false;
 
+        // Create sprite managers for zombie sprites
         if (this.isElite) {
-            // Red color for elite zombies
-            this.mesh.material.diffuseColor = new BABYLON.Color3(0.8, 0.1, 0.1); // Red for elite zombies
-            this.mesh.material.emissiveColor = new BABYLON.Color3(0.4, 0.05, 0.05); // Red glow
+            // Elite zombie (boss) sprites
+            this.spriteManagerUp = new BABYLON.SpriteManager(
+                "zombieBossUpManager",
+                "assets/images/zombieboss_up_spritemap.png",
+                1, // Only one sprite in this manager
+                {width: 350, height: 450}, // Size of each sprite cell
+                scene
+            );
 
-            // Make elite zombies slightly larger
-            this.mesh.scaling = new BABYLON.Vector3(1.2, 1.2, 1.2);
+            this.spriteManagerDown = new BABYLON.SpriteManager(
+                "zombieBossDownManager",
+                "assets/images/zombieboss_down_spritemap.png",
+                1, // Only one sprite in this manager
+                {width: 350, height: 450}, // Size of each sprite cell
+                scene
+            );
+
+            // Make elite zombies larger
+            this.spriteScale = 3.0; // 2x bigger than before (1.5 * 2)
         } else {
-            // Regular zombie color
-            this.mesh.material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.2); // Green for regular zombies
-            this.mesh.material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.1); // Slight glow
+            // Regular zombie sprites
+            this.spriteManagerUp = new BABYLON.SpriteManager(
+                "zombieUpManager",
+                "assets/images/zombie_up_spritemap.png",
+                1, // Only one sprite in this manager
+                {width: 350, height: 450}, // Size of each sprite cell
+                scene
+            );
+
+            this.spriteManagerDown = new BABYLON.SpriteManager(
+                "zombieDownManager",
+                "assets/images/zombie_down_spritemap.png",
+                1, // Only one sprite in this manager
+                {width: 350, height: 450}, // Size of each sprite cell
+                scene
+            );
+
+            this.spriteScale = 2.4; // 2x bigger than before (1.2 * 2)
         }
+
+        // Create the up-facing sprite
+        this.spriteUp = new BABYLON.Sprite("zombieUp", this.spriteManagerUp);
+        this.spriteUp.width = this.spriteScale;
+        this.spriteUp.height = this.spriteScale;
+        this.spriteUp.isVisible = false;
+        this.spriteUp.renderingGroupId = 1; // Middle rendering group
+
+        // Create the down-facing sprite
+        this.spriteDown = new BABYLON.Sprite("zombieDown", this.spriteManagerDown);
+        this.spriteDown.width = this.spriteScale;
+        this.spriteDown.height = this.spriteScale;
+        this.spriteDown.isVisible = true; // Start with down sprite visible
+        this.spriteDown.renderingGroupId = 1; // Middle rendering group
+
+        // Track current direction
+        this.currentDirection = "down"; // Start with down direction
+
+        // Set up sprite animations
+        this.setupSpriteAnimations();
 
         // Set position
         if (position) {
@@ -113,6 +166,47 @@ class Zombie {
         this.setupSoundTimer();
     }
 
+    setupSpriteAnimations() {
+        // Set up sprite animations for both up and down sprites
+        // Each sprite has 4 frames (0-3)
+
+        // We'll use a custom animation approach to match the player's animation speed
+        this.animationFrame = 0;
+        this.lastFrameTime = 0;
+        this.frameDuration = 250; // 250ms per frame = 4 frames per second (same as player)
+
+        // Set initial frame
+        this.spriteUp.cellIndex = 0;
+        this.spriteDown.cellIndex = 0;
+
+        // Disable automatic animation
+        this.spriteUp.stopAnimation();
+        this.spriteDown.stopAnimation();
+
+        // Add an observer to handle custom animation
+        this.animationObserver = this.scene.onBeforeRenderObservable.add(() => {
+            if (this.isDead) return;
+
+            try {
+                // Handle custom animation timing
+                const currentTime = Date.now();
+
+                // Update animation frame at the specified frame duration
+                if (currentTime - this.lastFrameTime > this.frameDuration) {
+                    // Time to advance to next frame
+                    this.animationFrame = (this.animationFrame + 1) % 4; // Loop through 0-3
+                    this.lastFrameTime = currentTime;
+
+                    // Update both sprites' cell index
+                    this.spriteUp.cellIndex = this.animationFrame;
+                    this.spriteDown.cellIndex = this.animationFrame;
+                }
+            } catch (error) {
+                console.error("Error in zombie animation:", error);
+            }
+        });
+    }
+
     setupSoundTimer() {
         // Play zombie sound at random intervals
         this.soundTimer = setInterval(() => {
@@ -125,8 +219,40 @@ class Zombie {
     moveTowardsPlayer() {
         if (this.isDead) return;
 
-        const direction = this.player.mesh.position.subtract(this.mesh.position).normalize();
-        this.mesh.position.addInPlace(direction.scale(this.speed));
+        try {
+            // Get direction to player
+            const direction = this.player.mesh.position.subtract(this.mesh.position);
+            direction.y = 0; // Keep zombies on the ground
+            direction.normalize();
+
+            // Move zombie
+            this.mesh.position.addInPlace(direction.scale(this.speed));
+
+            // Update sprite positions to match the mesh
+            const spritePosition = this.mesh.position.clone();
+            spritePosition.y = 1; // Set the correct height for sprites
+            this.spriteUp.position = spritePosition.clone();
+            this.spriteDown.position = spritePosition.clone();
+
+            // Determine which sprite to show based on movement direction
+            // If moving up (negative z), use up sprite, otherwise use down sprite
+            const isMovingUp = direction.z < 0;
+
+            // Switch sprites if direction changed
+            if (isMovingUp && this.currentDirection !== "up") {
+                // Switch to up sprite
+                this.currentDirection = "up";
+                this.spriteUp.isVisible = true;
+                this.spriteDown.isVisible = false;
+            } else if (!isMovingUp && this.currentDirection !== "down") {
+                // Switch to down sprite
+                this.currentDirection = "down";
+                this.spriteDown.isVisible = true;
+                this.spriteUp.isVisible = false;
+            }
+        } catch (error) {
+            console.error("Error in zombie moveTowardsPlayer:", error);
+        }
     }
 
     takeDamage(damage = 1) {
@@ -146,43 +272,83 @@ class Zombie {
     }
 
     flashDamage() {
-        // Flash the zombie mesh red to indicate damage
-        const originalColor = this.mesh.material.diffuseColor.clone();
-        this.mesh.material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Bright red
+        try {
+            // Flash the zombie sprites red to indicate damage
+            const flashColor = new BABYLON.Color3(1, 0, 0); // Bright red
 
-        // Return to original color after a short time
-        setTimeout(() => {
-            if (this.mesh && this.mesh.material) {
-                this.mesh.material.diffuseColor = originalColor;
-            }
-        }, 100);
+            // Store original colors (sprites use color property, not material)
+            const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
+            const originalDownColor = this.spriteDown.color ? this.spriteDown.color.clone() : new BABYLON.Color3(1, 1, 1);
+
+            // Apply red tint to both sprites
+            this.spriteUp.color = flashColor;
+            this.spriteDown.color = flashColor;
+
+            // Return to original colors after a short time
+            setTimeout(() => {
+                if (this.spriteUp) this.spriteUp.color = originalUpColor;
+                if (this.spriteDown) this.spriteDown.color = originalDownColor;
+            }, 100);
+        } catch (error) {
+            console.error("Error in zombie flashDamage:", error);
+        }
     }
 
     die(killedByPlayer = false) {
         if (this.isDead) return;
 
-        this.isDead = true;
+        try {
+            this.isDead = true;
+            console.log(`Zombie died. Elite: ${this.isElite}`);
 
-        // Only increment kill count if killed by player
-        if (killedByPlayer && this.scene && this.scene.zombiesKilled !== undefined) {
-            this.scene.zombiesKilled++;
-            console.log(`Zombie killed! Total: ${this.scene.zombiesKilled}`);
-        }
+            // Only increment kill count if killed by player
+            if (killedByPlayer && this.scene && this.scene.zombiesKilled !== undefined) {
+                this.scene.zombiesKilled++;
+                console.log(`Zombie killed! Total: ${this.scene.zombiesKilled}`);
+            }
 
-        // Create explosion effect
-        this.createDeathExplosion();
+            // Create explosion effect
+            this.createDeathExplosion();
 
-        // Play zombie death sound
-        if (this.audioSystem) {
-            this.audioSystem.playZombieSound();
-        }
+            // Play zombie death sound
+            if (this.audioSystem) {
+                this.audioSystem.playZombieSound();
+            }
 
-        // Remove the zombie mesh
-        this.mesh.dispose();
+            // Dispose of sprites and sprite managers
+            if (this.spriteUp) {
+                this.spriteUp.dispose();
+            }
 
-        // Clear the sound timer
-        if (this.soundTimer) {
-            clearInterval(this.soundTimer);
+            if (this.spriteDown) {
+                this.spriteDown.dispose();
+            }
+
+            if (this.spriteManagerUp) {
+                this.spriteManagerUp.dispose();
+            }
+
+            if (this.spriteManagerDown) {
+                this.spriteManagerDown.dispose();
+            }
+
+            // Remove the zombie mesh
+            if (this.mesh) {
+                this.mesh.dispose();
+            }
+
+            // Clear the sound timer
+            if (this.soundTimer) {
+                clearInterval(this.soundTimer);
+            }
+
+            // Remove animation observer
+            if (this.animationObserver) {
+                this.scene.onBeforeRenderObservable.remove(this.animationObserver);
+                this.animationObserver = null;
+            }
+        } catch (error) {
+            console.error("Error in zombie die:", error);
         }
     }
 
@@ -305,12 +471,43 @@ class Zombie {
     }
 
     dispose() {
-        if (this.soundTimer) {
-            clearInterval(this.soundTimer);
-        }
+        try {
+            // Clear timers and observers
+            if (this.soundTimer) {
+                clearInterval(this.soundTimer);
+            }
 
-        if (this.mesh && !this.mesh.isDisposed()) {
-            this.mesh.dispose();
+            // Remove animation observer
+            if (this.animationObserver) {
+                this.scene.onBeforeRenderObservable.remove(this.animationObserver);
+            }
+
+            // Dispose sprites
+            if (this.spriteUp && !this.spriteUp.isDisposed) {
+                this.spriteUp.dispose();
+            }
+
+            if (this.spriteDown && !this.spriteDown.isDisposed) {
+                this.spriteDown.dispose();
+            }
+
+            // Dispose sprite managers
+            if (this.spriteManagerUp && !this.spriteManagerUp.isDisposed) {
+                this.spriteManagerUp.dispose();
+            }
+
+            if (this.spriteManagerDown && !this.spriteManagerDown.isDisposed) {
+                this.spriteManagerDown.dispose();
+            }
+
+            // Dispose mesh
+            if (this.mesh && !this.mesh.isDisposed()) {
+                this.mesh.dispose();
+            }
+
+            console.log("Zombie fully disposed");
+        } catch (error) {
+            console.error("Error in zombie dispose:", error);
         }
     }
 }

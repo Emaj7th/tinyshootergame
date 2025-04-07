@@ -38,6 +38,9 @@ class Player {
         playerPlaneMaterial.backFaceCulling = false;
         this.mesh.material = playerPlaneMaterial;
 
+        // CRITICAL: Enable collision detection for the player
+        this.mesh.checkCollisions = true;
+
         // CRITICAL: Ensure the mesh never affects visibility
         this.mesh.isVisible = false;
         this.mesh.visibility = 0;

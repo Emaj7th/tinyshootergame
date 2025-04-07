@@ -14,13 +14,29 @@ import {
 } from '../utils/constants.js';
 
 async function createGameScene(scene, canvas) {
+    // CRITICAL: Enable collision detection for the scene
+    scene.collisionsEnabled = true;
+
     // Create the advanced texture for the UI
     scene.advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
-    // Create the ground
+    // Create the ground with tiled texture
     const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 50, height: 50, subdivisions: 2}, scene);
-    ground.material = new BABYLON.StandardMaterial("groundMat", scene);
-    ground.material.diffuseColor = new BABYLON.Color3(0.2, 0.3, 0.1); // Dark green for grass
+    const groundMaterial = new BABYLON.StandardMaterial("groundMat", scene);
+
+    // Load the ground texture
+    const groundTexture = new BABYLON.Texture("assets/images/texture_ground.png", scene);
+    groundTexture.uScale = 10; // Tile the texture 10 times in the U direction
+    groundTexture.vScale = 10; // Tile the texture 10 times in the V direction
+
+    // Apply the texture to the ground material
+    groundMaterial.diffuseTexture = groundTexture;
+    groundMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1); // Reduce shininess
+
+    // Apply the material to the ground
+    ground.material = groundMaterial;
+
+    console.log("Ground texture applied and tiled");
 
     // Add some obstacles
     createObstacles(scene);
@@ -215,12 +231,42 @@ function createObstacles(scene) {
     // Array to store all obstacles for collision detection
     scene.obstacles = [];
 
-    // Create car-like obstacles at different positions and rotations
-    createCar(scene, new BABYLON.Vector3(10, 0, 8), 0, new BABYLON.Color3(0.8, 0.1, 0.1)); // Red car
-    createCar(scene, new BABYLON.Vector3(-12, 0, -5), Math.PI / 4, new BABYLON.Color3(0.1, 0.1, 0.8)); // Blue car
-    createCar(scene, new BABYLON.Vector3(-8, 0, 15), Math.PI / 2, new BABYLON.Color3(0.1, 0.7, 0.1)); // Green car
-    createCar(scene, new BABYLON.Vector3(15, 0, -10), Math.PI / 6, new BABYLON.Color3(0.8, 0.8, 0.1)); // Yellow car
-    createCar(scene, new BABYLON.Vector3(0, 0, -18), Math.PI, new BABYLON.Color3(0.8, 0.4, 0.1)); // Orange car
+    // CRITICAL: Add a debug message to verify this function is being called
+    console.log("OBSTACLE CREATION STARTED");
+
+    try {
+        // No test box needed anymore
+        console.log("Starting car creation...");
+
+        // Now try to create car sprites
+        console.log("Creating car sprites...");
+
+        // Create each car with a different image - one at a time to isolate issues
+        console.log("Creating car 1...");
+        const car1 = createCarImage(scene, new BABYLON.Vector3(10, 0, 8), "assets/images/car_down_1.png");
+        console.log("Car 1 created:", car1);
+
+        console.log("Creating car 2...");
+        const car2 = createCarImage(scene, new BABYLON.Vector3(-12, 0, -5), "assets/images/car_down_2.png");
+        console.log("Car 2 created:", car2);
+
+        console.log("Creating car 3...");
+        const car3 = createCarImage(scene, new BABYLON.Vector3(-8, 0, 15), "assets/images/car_down_3.png");
+        console.log("Car 3 created:", car3);
+
+        console.log("Creating car 4...");
+        const car4 = createCarImage(scene, new BABYLON.Vector3(15, 0, -10), "assets/images/car_down_4.png");
+        console.log("Car 4 created:", car4);
+
+        console.log("Creating car 5...");
+        const car5 = createCarImage(scene, new BABYLON.Vector3(0, 0, -18), "assets/images/car_down_5.png");
+        console.log("Car 5 created:", car5);
+
+        // Log to verify all cars were created
+        console.log("All car sprites created successfully");
+    } catch (error) {
+        console.error("Error creating obstacles:", error);
+    }
 
     // Add a few more obstacles
     // Dumpster
@@ -231,92 +277,105 @@ function createObstacles(scene) {
     scene.obstacles.push(dumpster);
 }
 
-function createCar(scene, position, rotation, color) {
-    // Create a parent container for the car parts
-    const car = new BABYLON.TransformNode("car", scene);
-    car.position = position;
-    car.rotation.y = rotation;
+function createCarImage(scene, position, imagePath) {
+    console.log(`Creating car at position ${position.toString()} with image ${imagePath}`);
 
-    // Main body of the car
-    const carBody = BABYLON.MeshBuilder.CreateBox("carBody", {
-        width: 3,      // Width of the car
-        height: 1.5,    // Height of the car body
-        depth: 6        // Length of the car
-    }, scene);
-    carBody.position.y = 0.75; // Half the height
-    carBody.parent = car;
+    try {
+        // Create a parent container for the car
+        const car = new BABYLON.TransformNode("car", scene);
+        car.position = position;
+        // No rotation - all cars point down as designed
 
-    // Create a material for the car body
-    const bodyMaterial = new BABYLON.StandardMaterial("carBodyMat", scene);
-    bodyMaterial.diffuseColor = color;
-    carBody.material = bodyMaterial;
+        // Create a plane for the car image - 1/3 bigger as requested
+        const carPlane = BABYLON.MeshBuilder.CreatePlane("carPlane", {
+            width: 5.33,   // Width of the car (4 * 1.33)
+            height: 5.33    // Height of the car (4 * 1.33)
+        }, scene);
 
-    // Create wheels (4 smaller blocks)
-    // Front left wheel
-    const wheelFL = BABYLON.MeshBuilder.CreateBox("wheelFL", {
-        width: 0.8,
-        height: 0.8,
-        depth: 1
-    }, scene);
-    wheelFL.position = new BABYLON.Vector3(-1.5, -0.35, 2); // Left front
-    wheelFL.parent = car;
+        // CRITICAL: Rotate the plane to be vertical
+        carPlane.rotation.x = Math.PI/2; // Rotate 90 degrees to be vertical
 
-    // Front right wheel
-    const wheelFR = BABYLON.MeshBuilder.CreateBox("wheelFR", {
-        width: 0.8,
-        height: 0.8,
-        depth: 1
-    }, scene);
-    wheelFR.position = new BABYLON.Vector3(1.5, -0.35, 2); // Right front
-    wheelFR.parent = car;
+        // Position the plane at the right height
+        carPlane.position.y = 2.5; // Raised to be visible (adjusted for larger size)
 
-    // Rear left wheel
-    const wheelRL = BABYLON.MeshBuilder.CreateBox("wheelRL", {
-        width: 0.8,
-        height: 0.8,
-        depth: 1
-    }, scene);
-    wheelRL.position = new BABYLON.Vector3(-1.5, -0.35, -2); // Left rear
-    wheelRL.parent = car;
+        // Make the plane a child of the car container
+        carPlane.parent = car;
 
-    // Rear right wheel
-    const wheelRR = BABYLON.MeshBuilder.CreateBox("wheelRR", {
-        width: 0.8,
-        height: 0.8,
-        depth: 1
-    }, scene);
-    wheelRR.position = new BABYLON.Vector3(1.5, -0.35, -2); // Right rear
-    wheelRR.parent = car;
+        // Create a material for the car
+        const carMaterial = new BABYLON.StandardMaterial("carMaterial", scene);
 
-    // Create a material for the wheels
-    const wheelMaterial = new BABYLON.StandardMaterial("wheelMat", scene);
-    wheelMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2); // Dark gray/black
+        // Load the car texture
+        console.log(`Loading texture from: ${imagePath}`);
+        const carTexture = new BABYLON.Texture(imagePath, scene);
+        carMaterial.diffuseTexture = carTexture;
 
-    // Apply the wheel material to all wheels
-    wheelFL.material = wheelMaterial;
-    wheelFR.material = wheelMaterial;
-    wheelRL.material = wheelMaterial;
-    wheelRR.material = wheelMaterial;
+        // Enable alpha for transparent parts of the image
+        carMaterial.diffuseTexture.hasAlpha = true;
+        carMaterial.useAlphaFromDiffuseTexture = true;
 
-    // Add a windshield
-    const windshield = BABYLON.MeshBuilder.CreateBox("windshield", {
-        width: 2.5,
-        height: 0.8,
-        depth: 0.1
-    }, scene);
-    windshield.position = new BABYLON.Vector3(0, 1.2, 1.5); // Front top
-    windshield.parent = car;
+        // Set material properties
+        carMaterial.specularColor = new BABYLON.Color3(0, 0, 0); // No specular highlights
+        carMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1); // Full brightness
+        carMaterial.backFaceCulling = false; // Visible from both sides
 
-    // Create a material for the windshield
-    const glassMaterial = new BABYLON.StandardMaterial("glassMat", scene);
-    glassMaterial.diffuseColor = new BABYLON.Color3(0.6, 0.8, 1.0); // Light blue
-    glassMaterial.alpha = 0.7; // Semi-transparent
-    windshield.material = glassMaterial;
+        // Apply the material to the plane
+        carPlane.material = carMaterial;
+        console.log(`Applied material with texture ${imagePath} to car plane`);
 
-    // Add the car to the obstacles array for collision detection
-    scene.obstacles.push(car);
+        // Create an invisible collision box for the car
+        // Make it 50px narrower on both sides as requested
+        const collisionBox = BABYLON.MeshBuilder.CreateBox("carCollision", {
+            width: 3.33,   // Width of the car collision (narrower than the visual but 1/3 bigger than before)
+            height: 2,      // Height of the car collision
+            depth: 6.67     // Length of the car collision (1/3 bigger than before)
+        }, scene);
 
-    return car;
+        // Position the collision box at the center of the car
+        collisionBox.position.y = 1; // Half the height
+
+        // Make the collision box a child of the car container
+        collisionBox.parent = car;
+
+        // Make the collision box invisible
+        collisionBox.isVisible = false;
+
+        // CRITICAL: Enable collision detection for the collision box
+        collisionBox.checkCollisions = true;
+
+        // Add both the car and its collision box to the obstacles array for collision detection
+        scene.obstacles.push(car);
+        scene.obstacles.push(collisionBox); // Add the collision box separately to ensure it's checked
+
+        console.log(`Created car at position ${position.toString()}`);
+
+        return car;
+    } catch (error) {
+        console.error(`Error creating car image:`, error);
+
+        // Create a fallback red box if there's an error - 1/3 bigger
+        const fallbackBox = BABYLON.MeshBuilder.CreateBox("fallbackCar", {
+            width: 4,      // 1/3 bigger than before
+            height: 2.67,   // 1/3 bigger than before
+            depth: 8        // 1/3 bigger than before
+        }, scene);
+
+        fallbackBox.position = position;
+        fallbackBox.position.y = 1.33; // Half height
+        // No rotation - all cars point down
+
+        const fallbackMaterial = new BABYLON.StandardMaterial("fallbackMaterial", scene);
+        fallbackMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); // Bright red
+        fallbackBox.material = fallbackMaterial;
+
+        // Enable collision detection for the fallback box
+        fallbackBox.checkCollisions = true;
+
+        scene.obstacles.push(fallbackBox);
+
+        console.log(`Created fallback car at position ${position.toString()}`);
+
+        return fallbackBox;
+    }
 }
 
 function spawnFood(scene, foods, collisionSystem) {
