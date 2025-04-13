@@ -108,6 +108,28 @@ project-root/
 - **UPPER_SNAKE_CASE** for constants: `MAX_BREATH_RANGE`, `JUMP_COOLDOWN`
 - Prefix custom Babylon objects clearly: `playerMesh`, `zombieMesh`
 
+## Sounds
+1. **Player Actions:**
+- Breath attack (continuous while firing) - player_breath.ogg
+- Picking up food items - player_pickup.ogg
+- Eating food items - player_eat.ogg
+- Entering fart mode - player_fart_start.ogg
+- Fart cloud effect (2 random variations) - player_fart_1.ogg, player_fart_2.ogg
+- Jump/dodge movement - player_jump.ogg
+- Running (optional footstep sounds)  - player_run.ogg
+- Taking damage/getting hit by zombie - player_damage.ogg
+- Death/game over - player_death.ogg
+1. **Zombie Actions:**
+- Zombie groans (2 random variations) - zombie_groan_1.ogg, zombie_groan_2.ogg.
+- Elite Zombie groans (2 random variations)- elite_zombie_groan_1.ogg, elite_zombie_groan_2.ogg
+- Zombie death/explosion - zombie_death.ogg
+1. **Game State:**
+- Game start - game_start.ogg
+- Horde mode activation - game_horde_alert.ogg
+- Background music (continuous loop) - bgm.ogg
+1. **UI/Menu:**
+- Button clicks (optional) - button_click.ogg
+
 ## Gameplay Flow
 1. Load `index.html` which initializes `main.js`
 2. `main.js` sets up engine and loads `gameScene.js`
