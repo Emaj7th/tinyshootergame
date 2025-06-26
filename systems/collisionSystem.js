@@ -1,11 +1,12 @@
 import { FART_RANGE } from '../utils/constants.js';
 
 class CollisionSystem {
-    constructor(scene, player, zombies = [], foods = []) {
+    constructor(scene, player, zombies = [], foods = [], audioSystem) {
         this.scene = scene; // Store scene reference for zombie kill tracking
         this.player = player;
         this.zombies = zombies;
         this.foods = foods;
+        this.audioSystem = audioSystem; // Store the audio system
         this.zombiesToRemove = [];
         this.foodsToRemove = [];
     }
@@ -211,8 +212,8 @@ class CollisionSystem {
                             }
 
                             // Play pickup sound
-                            if (this.player.audioSystem) {
-                                this.player.audioSystem.playPickupSound();
+                            if (this.audioSystem) {
+                                this.audioSystem.playPlayerPickup();
                             }
 
                             // CRITICAL: Force the player sprites to be visible again

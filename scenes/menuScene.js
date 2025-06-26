@@ -158,6 +158,42 @@ class MenuScene {
 
         // Create scoreboard
         this.createScoreboard(mainContainer);
+
+        // Create controls section
+        this.createControlsSection(mainContainer);
+    }
+
+    createControlsSection(parentContainer) {
+        const controlsContainer = new BABYLON.GUI.StackPanel();
+        controlsContainer.width = "300px";
+        controlsContainer.height = "200px"; // Explicitly set height
+        controlsContainer.padding = "10px";
+        controlsContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        controlsContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+        controlsContainer.background = "#222222";
+        controlsContainer.thickness = 2;
+        controlsContainer.color = "#555555";
+        controlsContainer.cornerRadius = 10;
+        parentContainer.addControl(controlsContainer);
+
+        const controlsTitle = new BABYLON.GUI.TextBlock();
+        controlsTitle.text = "CONTROLS";
+        controlsTitle.color = "white";
+        controlsTitle.fontSize = 24;
+        controlsTitle.height = "40px";
+        controlsTitle.fontWeight = "bold";
+        controlsContainer.addControl(controlsTitle);
+
+        const controlsText = new BABYLON.GUI.TextBlock();
+        controlsText.text = "WASD: Move\nMouse: Aim Direction\nLeft Click: Fire Breath\nE: Eat Food (5 for Fart Bomb)\nSpace: Jump\nM: Toggle Sound";
+        controlsText.color = "white";
+        controlsText.fontSize = 18;
+        controlsText.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+        controlsText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+        controlsText.paddingLeft = "10px";
+        controlsText.paddingRight = "10px";
+        controlsText.paddingBottom = "10px";
+        controlsContainer.addControl(controlsText);
     }
 
     createScoreboard(parentContainer) {

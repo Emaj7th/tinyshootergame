@@ -101,14 +101,14 @@ class UISystem {
         this.healthContainer = new BABYLON.GUI.StackPanel();
         this.healthContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.healthContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
-        this.healthContainer.top = "20px";
+        this.healthContainer.top = "2px";
         this.healthContainer.left = "20px";
         this.healthContainer.isVertical = false;
         this.scene.advancedTexture.addControl(this.healthContainer);
 
         // Create heart icons for health
         this.heartIcons = [];
-        for (let i = 0; i < this.player.maxHealth; i++) {
+        for (let i = 1; i < this.player.maxHealth; i++) {
             const heart = new BABYLON.GUI.TextBlock();
             heart.text = "❤";
             heart.color = "red";
@@ -148,7 +148,7 @@ class UISystem {
 
         // Consumed foods counter
         this.consumedFoodsText = new BABYLON.GUI.TextBlock();
-        this.consumedFoodsText.text = "Foods eaten: 0";
+        this.consumedFoodsText.text = "Bites Eaten: 0";
         this.consumedFoodsText.color = "white";
         this.consumedFoodsText.fontSize = 16;
         this.consumedFoodsText.height = "30px";

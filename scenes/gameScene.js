@@ -14,8 +14,11 @@ import {
 } from '../utils/constants.js';
 
 async function createGameScene(scene, canvas) {
-    // CRITICAL: Enable collision detection for the scene
-    scene.collisionsEnabled = true;
+    console.log("[createGameScene] Starting createGameScene...");
+    try {
+        // CRITICAL: Enable collision detection for the scene
+        scene.collisionsEnabled = true;
+        console.log("[createGameScene] Collision detection enabled.");
 
     // Create the advanced texture for the UI
     scene.advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
@@ -36,18 +39,25 @@ async function createGameScene(scene, canvas) {
     // Apply the material to the ground
     ground.material = groundMaterial;
 
-    console.log("Ground texture applied and tiled");
+    console.log("[createGameScene] Ground created.");
 
     // Add some obstacles
     createObstacles(scene);
+    console.log("[createGameScene] Obstacles created.");
 
     // Initialize audio system first so it can be used by other systems
     const audioSystem = new AudioSystem(scene);
+    console.log("[createGameScene] AudioSystem initialized.");
+
+    // Play game start sound
+    audioSystem.playGameStart();
+    console.log("[createGameScene] Game start sound played.");
 
     // Set up game state variables
     scene.zombiesKilled = 0; // Track zombie kills
     scene.isHordeModeActive = false; // Track horde mode state
     scene.baseZombieSpeed = ZOMBIE_SPEED; // Store the base zombie speed
+    console.log("[createGameScene] Game state variables initialized.");
 
     // Add methods to update zombie speed and horde mode
     scene.updateZombieSpeed = function(speedMultiplier) {
@@ -79,22 +89,22 @@ async function createGameScene(scene, canvas) {
 
     // Initialize the player
     const player = new Player(scene, audioSystem);
-
-    // Ensure player starts with full health
-    player.health = player.maxHealth;
-    console.log("Player health reset to maximum:", player.health);
+    console.log("[createGameScene] Player initialized.");
 
     // Initialize zombies array
     const zombies = [];
+    console.log("[createGameScene] Zombies array initialized.");
 
     // Create initial zombies - increased count
     for (let i = 0; i < 10; i++) {
         const zombie = new Zombie(scene, player, audioSystem);
         zombies.push(zombie);
     }
+    console.log("[createGameScene] Initial zombies created.");
 
     // Initialize food items array
     const foods = [];
+    console.log("[createGameScene] Foods array initialized.");
 
     // Create initial food items - reduced to 0 since player starts with 1
     for (let i = 0; i < 0; i++) { // No initial food spawns
@@ -112,15 +122,19 @@ async function createGameScene(scene, canvas) {
         foods.push(food);
         console.log("Created initial food:", randomType, "at position:", position.toString());
     }
+    console.log("[createGameScene] Initial food items processed.");
 
     // Initialize input system
     const inputSystem = new InputSystem(scene, player, canvas);
+    console.log("[createGameScene] InputSystem initialized.");
 
     // Initialize collision system
-    const collisionSystem = new CollisionSystem(scene, player, zombies, foods);
+    const collisionSystem = new CollisionSystem(scene, player, zombies, foods, audioSystem);
+    console.log("[createGameScene] CollisionSystem initialized.");
 
     // Initialize UI system
     const uiSystem = new UISystem(scene, player);
+    console.log("[createGameScene] UISystem initialized.");
 
     // Set up timers for spawning
     let lastFoodSpawnTime = Date.now();
@@ -133,7 +147,7 @@ async function createGameScene(scene, canvas) {
     console.log("Initial zombie speed multiplier:", zombieSpeedMultiplier);
 
     // Set up the game loop
-    scene.onBeforeRenderObservable.add(() => {
+    const gameLoopObserver = scene.onBeforeRenderObservable.add(() => {
         // Skip updates if input system is paused
         if (inputSystem.isPaused) {
             return;
@@ -223,10 +237,14 @@ async function createGameScene(scene, canvas) {
         inputSystem: inputSystem,
         collisionSystem: collisionSystem,
         uiSystem: uiSystem,
-        audioSystem: audioSystem
+        audioSystem: audioSystem,
+        gameLoopObserver: gameLoopObserver
     };
+} catch (error) {
+    console.error("[createGameScene] Error during scene creation:", error);
+    throw error; // Re-throw the error to be caught by the caller
 }
-
+}
 function createObstacles(scene) {
     // Array to store all obstacles for collision detection
     scene.obstacles = [];

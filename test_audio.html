@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Test</title>
+    <!-- Babylon.js from CDN -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+</head>
+<body>
+    <canvas id="renderCanvas" style="width: 100%; height: 100%;"></canvas>
+    <button id="runSceneButton" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">Run Scene and Play Audio</button>
+    <script>
+        const canvas = document.getElementById('renderCanvas');
+        const engine = new BABYLON.Engine(canvas, true);
+        let currentScene = null; // To hold the active scene
+
+        // Explicitly initialize the audio engine using the factory
+        // This mimics the behavior seen in test_audio2.html
+        if (!engine.audioEngine) {
+            BABYLON.AbstractEngine.audioEngine = BABYLON.AbstractEngine.AudioEngineFactory(engine.getRenderingCanvas(), engine.getAudioContext(), engine.getAudioDestination());
+        }
+
+        // Your working createScene function, exactly as provided
+        const createScene = function () {
+            const scene = new BABYLON.Scene(engine);
+
+            const camera = new BABYLON.FreeCamera("FreeCamera", new BABYLON.Vector3(0, 0, 0), scene);
+
+            const music = new BABYLON.Sound("Violons", "assets/audio/testfile.wav", scene, 
+            function() {
+                // Sound has been downloaded & decoded
+                console.log("Sound loaded and ready. Attempting to play.");
+                music.play();
+                console.log("Music is playing:", music.isPlaying);
+            }
+            );
+
+            return scene;
+        };
+
+        // Event listener for the button click
+        document.getElementById('runSceneButton').onclick = function() {
+            console.log("Run Scene button clicked. Creating new scene...");
+            // Dispose of the old scene if it exists to ensure a clean re-initialization
+            if (currentScene) {
+                currentScene.dispose();
+                console.log("Previous scene disposed.");
+            }
+            // Create a new scene, which will also load and attempt to play the sound
+            currentScene = createScene();
+            console.log("New scene created.");
+        };
+
+        // Render loop
+        engine.runRenderLoop(function () {
+            if (currentScene) {
+                currentScene.render();
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function () {
+            engine.resize();
+        });
+    </script>
+</body>
+</html>

@@ -1,11 +1,11 @@
 # Game Design Document: "Bad Breath Blitz"
 
 ## Game Overview
-**Title**: Bad Breath Blitz  
-**Genre**: Top-down action shooter  
-**Platform**: Web browser (Babylon.js - https://cdn.babylonjs.com/babylon.max.js)  
-**Perspective**: 2D top-down  
-**Visual Style**: Retro / Minimalist  
+**Title**: Bad Breath Blitz
+**Genre**: Top-down action shooter
+**Platform**: Web browser (Babylon.js - https://cdn.babylonjs.com/babylon.max.js)
+**Perspective**: 2D top-down
+**Visual Style**: Retro / Minimalist
 **Sound**: Light retro background music and comedic sound effects
 
 ## Game Concept
@@ -64,42 +64,103 @@ Audio files to be provided.
 
 ## Project Directory Structure
 ```
-project-root/
-│
-├── index.html                  # Main HTML file
-├── main.js                     # Entry point
-├── /lib                        # External libraries
-│   └── babylon.max.js          # BabylonJS core
-│
-├── /assets                     # Game assets (SFX, BGM, optional retro sprites)
-│   ├── audio/
-│   │   ├── breath.wav
-│   │   ├── fart.wav
-│   │   ├── zombie.wav
-│   │   ├── eat.wav
-│   │   └── bgm.mp3
-│   └── images/                 # Retro pixel icons or textures (optional)
-│
-├── /scenes                    # BabylonJS scene setup
-│   └── gameScene.js           # Main gameplay scene logic
-│
-├── /entities
-│   ├── player.js              # Player class and behaviors
-│   ├── zombie.js              # Zombie enemy class and AI
-│   └── projectile.js          # Breath and fart emissions
-│
-├── /systems
-│   ├── inputSystem.js         # Input handlers (WASD, mouse, etc.)
-│   ├── collisionSystem.js     # Handle all collisions
-│   ├── uiSystem.js            # Lives, items collected, status bars
-│   └── audioSystem.js         # All SFX/BGM handling
-│
-├── /utils
-│   ├── helpers.js             # General helper functions
-│   └── constants.js           # Game constants and config
-│
-└── /levels
-    └── level1.json            # Town level layout (JSON map or procedurally generated)
+/d/DevRoot/tinyshootergame/
+├───.gitattributes
+├───index.html
+├───LICENSE
+├───main.js
+├───README.md
+├───specification.md
+├───test_audio.html
+├───test_audio2.html
+├───test-image.html
+├───tinyshootergame.code-workspace
+├───.git/...
+├───assets/
+│   ├───audio/
+│   │   ├───bgm.mp3
+│   │   ├───bgm.wav
+│   │   ├───button_click.mp3
+│   │   ├───elite_zombie_groan_1.mp3
+│   │   ├───elite_zombie_groan_2.mp3
+│   │   ├───game_horde_alert.mp3
+│   │   ├───game_start.mp3
+│   │   ├───player_breath.mp3
+│   │   ├───player_damage.mp3
+│   │   ├───player_death.mp3
+│   │   ├───player_eat.mp3
+│   │   ├───player_fart_1.mp3
+│   │   ├───player_fart_2.mp3
+│   │   ├───player_fart_start.mp3
+│   │   ├───player_jump.mp3
+│   │   ├───player_pickup.mp3
+│   │   ├───player_run.mp3
+│   │   ├───testfile.wav
+│   │   ├───zombie_death.mp3
+│   │   ├───zombie_groan_1.mp3
+│   │   ├───zombie_groan_2.mp3
+│   │   └───ogg/
+│   │       ├───bgm.ogg
+│   │       ├───button_click.ogg
+│   │       ├───elite_zombie_groan_1.ogg
+│   │       ├───elite_zombie_groan_2.ogg
+│   │       ├───game_horde_alert.ogg
+│   │       ├───game_start.ogg
+│   │       ├───player_breath.ogg
+│   │       ├───player_damage.ogg
+│   │       ├───player_death.ogg
+│   │       ├───player_eat.ogg
+│   │       ├───player_fart_1.ogg
+│   │       ├───player_fart_2.ogg
+│   │       ├───player_fart_start.ogg
+│   │       ├───player_jump.ogg
+│   │       ├───player_pickup.ogg
+│   │       ├───player_run.ogg
+│   │       ├───zombie_death.ogg
+│   │       ├───zombie_groan_1.ogg
+│   │       └───zombie_groan_2.ogg
+│   └───images/
+│       ├───car_down_1.png
+│       ├───car_down_2.png
+│       ├───car_down_3.png
+│       ├───car_down_4.png
+│       ├───car_down_5.png
+│       ├───character_down_spritemap-old.png
+│       ├───character_down_spritemap.png
+│       ├───character_up_spritemap-old.png
+│       ├───character_up_spritemap.png
+│       ├───food_cheese.png
+│       ├───food_coffee.png
+│       ├───food_garlic.png
+│       ├───food_onion.png
+│       ├───food_sandwich.png
+│       ├───texture_ground.png
+│       ├───zombie_down_spritemap.png
+│       ├───zombie_up_spritemap.png
+│       ├───zombieboss_down_spritemap.png
+│       └───zombieboss_up_spritemap.png
+├───entities/
+│   ├───food.js
+│   ├───player.js
+│   ├───projectile.js
+│   └───zombie.js
+├───levels/
+│   └───level1.json
+├───lib/
+│   ├───babylon.js
+│   └───babylon.max.js
+├───scenes/
+│   ├───gameScene.js
+│   └───menuScene.js
+├───systems/
+│   ├───audioSystem.js
+│   ├───collisionSystem.js
+│   ├───inputSystem.js
+│   └───uiSystem.js
+└───utils/
+    ├───constants.js
+    ├───helpers.js
+    └───scoreManager.js
 ```
 
 ## Naming Conventions

@@ -166,6 +166,65 @@ class Zombie {
         this.setupSoundTimer();
     }
 
+    checkObstacleCollision(newPosition) {
+        // If there are no obstacles in the scene, return false (no collision)
+        if (!this.scene.obstacles || this.scene.obstacles.length === 0) {
+            return false;
+        }
+
+        // Zombie collision parameters
+        const zombieRadius = 1.0; // Based on zombie mesh width/depth
+
+        // Check each obstacle
+        for (const obstacle of this.scene.obstacles) {
+            // For TransformNode (car parent), we need to check its children
+            if (obstacle instanceof BABYLON.TransformNode) {
+                // Get the car collision box which is the main collision object
+                const carCollision = obstacle.getChildren().find(child => child.name === "carCollision");
+                if (!carCollision) {
+                    console.log("No collision box found for car:", obstacle.name);
+                    continue;
+                }
+
+                // Get car's world position
+                const carPosition = obstacle.getAbsolutePosition();
+
+                // Calculate car dimensions in world space
+                const carWidth = 3.33;
+                const carDepth = 6.67;
+
+                // Calculate the distance from zombie to car center
+                const dx = newPosition.x - carPosition.x;
+                const dz = newPosition.z - carPosition.z;
+
+                // Check if the point is inside the car's bounding box (plus zombie radius)
+                if (Math.abs(dx) < (carWidth / 2 + zombieRadius) &&
+                    Math.abs(dz) < (carDepth / 2 + zombieRadius)) {
+                    // console.log("Zombie-Car collision detected!");
+                    return true; // Collision detected
+                }
+            }
+            // For regular meshes like the dumpster (if any were added)
+            else if (obstacle instanceof BABYLON.Mesh) {
+                // Get bounding box in world space
+                const boundingInfo = obstacle.getBoundingInfo();
+                const boundingBox = boundingInfo.boundingBox;
+
+                // Expand the bounding box by the zombie radius
+                const min = boundingBox.minimum;
+                const max = boundingBox.maximum;
+
+                // Check if the zombie's position is inside the expanded bounding box
+                if (newPosition.x >= min.x - zombieRadius && newPosition.x <= max.x + zombieRadius &&
+                    newPosition.z >= min.z - zombieRadius && newPosition.z <= max.z + zombieRadius) {
+                    return true; // Collision detected
+                }
+            }
+        }
+
+        return false; // No collision
+    }
+
     setupSpriteAnimations() {
         // Set up sprite animations for both up and down sprites
         // Each sprite has 4 frames (0-3)
@@ -210,8 +269,12 @@ class Zombie {
     setupSoundTimer() {
         // Play zombie sound at random intervals
         this.soundTimer = setInterval(() => {
-            if (!this.isDead && this.audioSystem && Math.random() < 0.2) {
-                this.audioSystem.playZombieSound();
+            if (!this.isDead && this.audioSystem) {
+                if (this.isElite) {
+                    this.audioSystem.playEliteZombieGroan();
+                } else {
+                    this.audioSystem.playZombieGroan();
+                }
             }
         }, 5000); // Check every 5 seconds with a 20% chance to play
     }
@@ -225,8 +288,27 @@ class Zombie {
             direction.y = 0; // Keep zombies on the ground
             direction.normalize();
 
-            // Move zombie
-            this.mesh.position.addInPlace(direction.scale(this.speed));
+            // Calculate new position
+            const newPosition = this.mesh.position.clone().add(direction.scale(this.speed));
+
+            // Check for collisions with obstacles
+            if (!this.checkObstacleCollision(newPosition)) {
+                // No collision, update the position
+                this.mesh.position = newPosition;
+            } else {
+                // If collision, try to move around the obstacle (simple avoidance)
+                // This is a basic avoidance: try moving perpendicular to the obstacle
+                const perpendicularDirection = new BABYLON.Vector3(-direction.z, 0, direction.x);
+                const newPositionAttempt1 = this.mesh.position.clone().add(perpendicularDirection.scale(this.speed));
+                if (!this.checkObstacleCollision(newPositionAttempt1)) {
+                    this.mesh.position = newPositionAttempt1;
+                } else {
+                    const newPositionAttempt2 = this.mesh.position.clone().add(perpendicularDirection.scale(-this.speed));
+                    if (!this.checkObstacleCollision(newPositionAttempt2)) {
+                        this.mesh.position = newPositionAttempt2;
+                    }
+                }
+            }
 
             // Update sprite positions to match the mesh
             const spritePosition = this.mesh.position.clone();
@@ -312,7 +394,7 @@ class Zombie {
 
             // Play zombie death sound
             if (this.audioSystem) {
-                this.audioSystem.playZombieSound();
+                this.audioSystem.playZombieDeath();
             }
 
             // Dispose of sprites and sprite managers

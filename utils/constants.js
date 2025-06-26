@@ -7,7 +7,7 @@ const RUN_DURATION = 3; // seconds
 const RUN_COOLDOWN = 10; // seconds
 const PLAYER_SPEED = 0.1;
 const PLAYER_RUN_SPEED = 0.2;
-const PLAYER_MAX_HEALTH = 4;
+const PLAYER_MAX_HEALTH = 5;
 
 // Food constants
 const FOOD_TYPES = ['garlic', 'onion', 'cheese', 'coffee', 'sandwich'];

@@ -212,7 +212,7 @@ class Player {
             // Determine which sprite to show based on movement direction
             // If moving down (positive z), use down sprite, otherwise use up sprite
             // This matches the keyboard keys: W = up, S = down
-            const isMovingDown = direction.z > 0;
+            const isMovingDown = direction.z < 0;
 
             // Switch sprites if direction changed
             if (isMovingDown && this.currentDirection !== "down") {
@@ -393,7 +393,7 @@ class Player {
 
             // Play jump sound
             if (this.audioSystem) {
-                this.audioSystem.playJumpSound();
+                this.audioSystem.playPlayerJump();
             }
 
             // Set cooldown
@@ -464,13 +464,13 @@ class Player {
                 particleSystem.maxEmitBox = new BABYLON.Vector3(emitCone, emitCone, 0.1);
 
                 // Set particle colors - light blue/white for breath
-                particleSystem.color1 = new BABYLON.Color4(0.7, 0.8, 1.0, 0.8); // Light blue
-                particleSystem.color2 = new BABYLON.Color4(0.9, 0.9, 1.0, 0.8); // Almost white
-                particleSystem.colorDead = new BABYLON.Color4(0.5, 0.5, 0.8, 0.0); // Fade to transparent
+                particleSystem.color1 = new BABYLON.Color4(0.8, 0.7, 0.2, 0.8); // Dull yellow
+                particleSystem.color2 = new BABYLON.Color4(0.5, 0.3, 0.1, 0.8); // Brown
+                particleSystem.colorDead = new BABYLON.Color4(0.5, 0.5, 0.5, 0.0); // Gray, fading to transparent
 
-                // Make particles chunky and varied in size
-                particleSystem.minSize = 0.3;
-                particleSystem.maxSize = 1.2;
+                // Make particles smaller and varied in size for a less blocky look
+                particleSystem.minSize = 0.1;
+                particleSystem.maxSize = 0.5;
 
                 // Make particles last longer for a more persistent cloud
                 particleSystem.minLifeTime = 0.3;
@@ -546,11 +546,15 @@ class Player {
                             this.particleSystem.maxSize = 1.2 + travelProgress * 1.3; // 1.2 to 2.5
 
                             // Slow down particles as they travel
-                            this.particleSystem.minEmitPower = Math.max(0.5, 1.5 - travelProgress);
-                            this.particleSystem.maxEmitPower = Math.max(1.0, 3.5 - travelProgress * 2);
+                            this.particleSystem.minEmitPower = Math.max(0.1, 1.5 - travelProgress * 2.5); // More aggressive slowdown
+                            this.particleSystem.maxEmitPower = Math.max(0.5, 3.5 - travelProgress * 4.5); // More aggressive slowdown
 
                             // Increase emission rate as it travels for denser cloud
-                            this.particleSystem.emitRate = 300 + travelProgress * 200; // 300 to 500
+                            this.particleSystem.emitRate = 300 + travelProgress * 300; // 300 to 600
+
+                            // Increase spread for a more pronounced drag effect
+                            this.particleSystem.minEmitBox = new BABYLON.Vector3(-spread * 1.5, -spread * 1.5, -spread/2);
+                            this.particleSystem.maxEmitBox = new BABYLON.Vector3(spread * 1.5, spread * 1.5, spread/2);
                         }
 
                         if (this.distance > this.range) {
@@ -578,7 +582,7 @@ class Player {
 
                 // Play breath sound
                 if (this.audioSystem) {
-                    this.audioSystem.playBreathSound();
+                    this.audioSystem.playPlayerBreath();
                 }
             } catch (error) {
                 console.error("Error creating breath attack:", error);
@@ -587,7 +591,7 @@ class Player {
             // In fart mode, we don't need to create projectiles as the fart cloud is always active
             // But we can play the fart sound
             if (this.audioSystem) {
-                this.audioSystem.playFartSound();
+                this.audioSystem.playPlayerFart();
             }
         }
     }
@@ -610,7 +614,7 @@ class Player {
             this.createBreathResetEffect();
 
             if (this.audioSystem) {
-                this.audioSystem.playPickupSound();
+                this.audioSystem.playPlayerPickup();
             }
         } else {
             console.log(`[FOOD] Regular food collected: ${foodType}`);
@@ -620,7 +624,7 @@ class Player {
             this.flashFoodPickup();
 
             if (this.audioSystem) {
-                this.audioSystem.playPickupSound();
+                this.audioSystem.playPlayerPickup();
             }
         }
 
@@ -758,7 +762,7 @@ class Player {
         console.log(`[FLASH_RESET] Sprite DOWN visible before flash: ${wasDownVisible}`);
 
         // Flash the player sprites blue to indicate breath reset
-        const flashColor = new BABYLON.Color3(0.3, 0.7, 1.0); // Blue tint
+        const flashColor = new BABYLON.Color4(0.3, 0.7, 1.0, 1); // Blue tint
 
         // Store original colors
         const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
@@ -802,7 +806,7 @@ class Player {
         console.log(`[FLASH_FOOD] Starting food pickup flash effect`);
 
         // Flash the player sprites green to indicate food pickup
-        const flashColor = new BABYLON.Color3(0.3, 1.0, 0.3); // Green tint
+        const flashColor = new BABYLON.Color4(0.3, 1.0, 0.3, 1); // Green tint
 
         // Store original colors
         const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
@@ -864,7 +868,7 @@ class Player {
 
             // Play pickup sound
             if (this.audioSystem) {
-                this.audioSystem.playPickupSound();
+                this.audioSystem.playPlayerPickup();
             }
 
             return food;
@@ -904,7 +908,7 @@ class Player {
         console.log(`[FLASH_CONSUME] Sprite DOWN visible before flash: ${wasDownVisible}`);
 
         // Flash the player sprites yellow to indicate food consumption
-        const flashColor = new BABYLON.Color3(1, 1, 0.3); // Yellow tint
+        const flashColor = new BABYLON.Color4(1, 1, 0.3, 1); // Yellow tint
 
         // Store original colors
         const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
@@ -970,7 +974,7 @@ class Player {
         this._originalDownColor = this.spriteDown.color ? this.spriteDown.color.clone() : new BABYLON.Color3(1, 1, 1);
 
         // Apply green tint
-        const fartColor = new BABYLON.Color3(0.3, 0.7, 0.3);
+        const fartColor = new BABYLON.Color4(0.3, 0.7, 0.3, 1);
         this.spriteUp.color = fartColor;
         this.spriteDown.color = fartColor;
 
@@ -988,7 +992,7 @@ class Player {
 
         // Play fart sound
         if (this.audioSystem) {
-            this.audioSystem.playFartSound();
+            this.audioSystem.playPlayerFartStart();
         }
 
         // Create a visual indicator for the fart range
@@ -1097,7 +1101,7 @@ class Player {
 
         // Play damage sound if available
         if (this.audioSystem) {
-            this.audioSystem.playDamageSound();
+            this.audioSystem.playPlayerDamage();
         }
     }
 
@@ -1112,7 +1116,7 @@ class Player {
         console.log(`[FLASH_DAMAGE] Sprite DOWN visible before flash: ${wasDownVisible}`);
 
         // Flash the player sprites red to indicate damage
-        const flashColor = new BABYLON.Color3(1, 0.3, 0.3); // Red tint
+        const flashColor = new BABYLON.Color4(1, 0.3, 0.3, 1); // Red tint
 
         // Store original colors
         const originalUpColor = this.spriteUp.color ? this.spriteUp.color.clone() : new BABYLON.Color3(1, 1, 1);
