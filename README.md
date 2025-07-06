@@ -1,7 +1,8 @@
-```markdown
-# Tiny Shooter Game 👾
 
-A tiny, web-based shooter game with a twist! Built with JavaScript.
+# Bad Breath Attack 👾
+
+![Bad Breath Attack](assets/images/bad_breath_attack_splash_screen.jpg)
+ 
 
 ## Description
 
@@ -53,4 +54,3 @@ Contributions are welcome! If you'd like to contribute to the project, please fo
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-```

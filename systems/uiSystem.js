@@ -21,6 +21,16 @@ class UISystem {
     }
 
     createUIElements() {
+        // Create a container for top-left elements
+        this.topLeftContainer = new BABYLON.GUI.Grid();
+        this.topLeftContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+        this.topLeftContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+        this.topLeftContainer.width = "500px";
+        this.topLeftContainer.top = "20px";
+        this.topLeftContainer.addColumnDefinition(0.5); // Left column for health
+        this.topLeftContainer.addColumnDefinition(0.5); // Right column for score
+        this.scene.advancedTexture.addControl(this.topLeftContainer);
+
         // Health display
         this.createHealthDisplay();
 
@@ -43,12 +53,9 @@ class UISystem {
     createZombieKillCounter() {
         // Create a container for zombie kill counter
         this.killCounterContainer = new BABYLON.GUI.StackPanel();
-        this.killCounterContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.killCounterContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
         this.killCounterContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
-        this.killCounterContainer.top = "70px"; // Position below health
-        this.killCounterContainer.left = "20px";
-        this.scene.advancedTexture.addControl(this.killCounterContainer);
-
+        
         // Score counter (zombie kills)
         this.killCounterText = new BABYLON.GUI.TextBlock();
         this.killCounterText.text = "SCORE: 0";
@@ -56,6 +63,8 @@ class UISystem {
         this.killCounterText.fontSize = 24; // Slightly larger
         this.killCounterText.height = "30px";
         this.killCounterContainer.addControl(this.killCounterText);
+
+        this.topLeftContainer.addControl(this.killCounterContainer, 0, 1); // Add to grid, row 0, col 1
     }
 
     createHordeModeNotification() {
@@ -72,11 +81,11 @@ class UISystem {
         // Create a temporary message text block for notifications
         this.temporaryMessage = new BABYLON.GUI.TextBlock();
         this.temporaryMessage.text = "";
-        this.temporaryMessage.color = "yellow";
+        this.temporaryMessage.color = "black";
         this.temporaryMessage.fontSize = 30;
         this.temporaryMessage.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
         this.temporaryMessage.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
-        this.temporaryMessage.top = "100px"; // Below the horde mode notification
+        this.temporaryMessage.top = "300px"; // Below the horde mode notification
         this.temporaryMessage.isVisible = false;
         this.scene.advancedTexture.addControl(this.temporaryMessage);
     }
@@ -98,13 +107,17 @@ class UISystem {
 
     createHealthDisplay() {
         // Create a container for health hearts
+        const healthCell = new BABYLON.GUI.Rectangle();
+        healthCell.width = "100%";
+        healthCell.height = "100%";
+        healthCell.thickness = 0;
+        healthCell.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+
         this.healthContainer = new BABYLON.GUI.StackPanel();
+        this.healthContainer.isVertical = false;
         this.healthContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.healthContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
-        this.healthContainer.top = "2px";
-        this.healthContainer.left = "20px";
-        this.healthContainer.isVertical = false;
-        this.scene.advancedTexture.addControl(this.healthContainer);
+        this.healthContainer.top = "-455px";
 
         // Create heart icons for health
         this.heartIcons = [];
@@ -118,6 +131,9 @@ class UISystem {
             this.healthContainer.addControl(heart);
             this.heartIcons.push(heart);
         }
+
+        healthCell.addControl(this.healthContainer);
+        this.topLeftContainer.addControl(healthCell, 0, 0); // Add to grid, row 0, col 0
     }
 
     createFoodInventoryDisplay() {

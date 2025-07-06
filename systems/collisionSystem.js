@@ -156,7 +156,7 @@ class CollisionSystem {
         // This ensures consistent collision detection even if sprites are temporarily invisible
 
         for (const food of this.foods) {
-            if (!food.mesh || !this.player.mesh) continue;
+            if (!food.mesh || !this.player.mesh || food.isCollected) continue;
 
             try {
                 // Calculate distance between food and player mesh (not sprite)
@@ -169,6 +169,7 @@ class CollisionSystem {
                 const collisionThreshold = 2.0;
 
                 if (distance < collisionThreshold) {
+                    food.isCollected = true; // Set the flag immediately
                     console.log("Player collected food:", food.type, "Distance:", distance);
 
                     // Log current sprite state before collection

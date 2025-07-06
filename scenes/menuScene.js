@@ -31,24 +31,13 @@ class MenuScene {
         mainContainer.height = "100%";
         this.advancedTexture.addControl(mainContainer);
 
-        // Game title
-        const titleText = new BABYLON.GUI.TextBlock();
-        titleText.text = "Bad Breath Blitz";
-        titleText.color = "white";
-        titleText.fontSize = 60;
-        titleText.fontWeight = "bold";
-        titleText.height = "120px";
-        titleText.fontFamily = "Impact, fantasy";
-        titleText.top = "50px";
-        mainContainer.addControl(titleText);
-
-        // Developer credit
-        const creditText = new BABYLON.GUI.TextBlock();
-        creditText.text = "Vibe Coded Games ~ BY: Gideon Marken";
-        creditText.color = "white";
-        creditText.fontSize = 24;
-        creditText.height = "50px";
-        mainContainer.addControl(creditText);
+        // Splash screen image
+        const splashImage = new BABYLON.GUI.Image("splash", "assets/images/bad_breath_attack_splash_screen.jpg");
+        splashImage.width = "800px";
+        splashImage.height = "450px";
+        splashImage.stretch = BABYLON.GUI.Image.STRETCH_UNIFORM;
+        splashImage.paddingBottom = "10px";
+        mainContainer.addControl(splashImage);
 
         // Last score display (hidden initially)
         this.lastScoreText = new BABYLON.GUI.TextBlock();
@@ -68,7 +57,7 @@ class MenuScene {
         playButton.fontSize = 24;
         playButton.cornerRadius = 10;
         playButton.thickness = 2;
-        playButton.top = "30px";
+        playButton.paddingTop = "10px";
         playButton.onPointerUpObservable.add(() => {
             if (this.onPlayCallback) {
                 this.onPlayCallback();
@@ -97,7 +86,7 @@ class MenuScene {
         const highScoreTitle = new BABYLON.GUI.TextBlock();
         highScoreTitle.text = "NEW HIGH SCORE!";
         highScoreTitle.color = "yellow";
-        highScoreTitle.fontSize = 24;
+        highScoreTitle.fontSize = 20;
         highScoreTitle.height = "40px";
         this.highScoreInputContainer.addControl(highScoreTitle);
 
@@ -125,20 +114,20 @@ class MenuScene {
         this.initialsInput = new BABYLON.GUI.InputText();
         this.initialsInput.width = "100px";
         this.initialsInput.height = "30px";
-        this.initialsInput.color = "black";
-        this.initialsInput.background = "#e0e0e0"; // Light gray background
+        this.initialsInput.color = "#ffffff";
+        this.initialsInput.background = "#222222";
         this.initialsInput.maxWidth = "100px";
         this.initialsInput.fontSize = 18;
         this.initialsInput.text = "AAA";
 
         // Ensure the background stays light gray even when focused
         this.initialsInput.onFocusObservable.add(() => {
-            this.initialsInput.background = "#e0e0e0"; // Keep light gray when focused
+            this.initialsInput.background = "#000000"; 
         });
 
         // Also ensure it stays light gray when text changes
         this.initialsInput.onTextChangedObservable.add(() => {
-            this.initialsInput.background = "#e0e0e0"; // Keep light gray when text changes
+            this.initialsInput.background = "#000000"; 
         });
         initialsInputRow.addControl(this.initialsInput);
 
@@ -200,8 +189,8 @@ class MenuScene {
         // Scoreboard container
         const scoreboardContainer = new BABYLON.GUI.StackPanel();
         scoreboardContainer.width = "300px";
-        scoreboardContainer.height = "250px";
-        scoreboardContainer.top = "50px";
+        scoreboardContainer.height = "180px";
+        scoreboardContainer.paddingTop = "10px";
         scoreboardContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
         parentContainer.addControl(scoreboardContainer);
 

@@ -4,6 +4,7 @@ class Food {
     constructor(scene, position, type = null) {
         this.scene = scene;
         this.position = position;
+        this.isCollected = false; // Add a flag to prevent multiple collections
 
         // If no type is provided, randomly select one
         this.type = type || FOOD_TYPES[Math.floor(Math.random() * FOOD_TYPES.length)];
@@ -159,6 +160,12 @@ class Food {
     }
 
     dispose() {
+        // Prevent the dispose function from being called multiple times
+        if (this.isCollected) {
+            return;
+        }
+        this.isCollected = true;
+
         try {
             console.log(`[FOOD_DISPOSE] Starting disposal of food: ${this.type}`);
 
@@ -209,17 +216,9 @@ class Food {
                     this.mesh.material = null;
                 }
 
-                // Dispose the mesh in a safe way
-                setTimeout(() => {
-                    try {
-                        if (this.mesh) {
-                            this.mesh.dispose();
-                            console.log(`[FOOD_DISPOSE] Disposed mesh`);
-                        }
-                    } catch (error) {
-                        console.error(`[FOOD_DISPOSE] Error disposing mesh:`, error);
-                    }
-                }, 100);
+                // Dispose the mesh immediately to prevent multiple collections
+                this.mesh.dispose();
+                console.log(`[FOOD_DISPOSE] Disposed mesh`);
             }
 
             console.log(`[FOOD_DISPOSE] Completed disposal of food: ${this.type}`);

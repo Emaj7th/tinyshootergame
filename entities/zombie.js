@@ -435,37 +435,45 @@ class Zombie {
     }
 
     createDeathExplosion() {
-        // Create particle system for explosion
-        const explosion = new BABYLON.ParticleSystem("explosion", 100, this.scene);
-        explosion.particleTexture = new BABYLON.Texture("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", this.scene);
-
-        // Set particle system properties
+        // Create particle system for explosion using sprite sheet
+        const explosion = new BABYLON.ParticleSystem("explosion", 20, this.scene);
+        explosion.particleTexture = new BABYLON.Texture("assets/images/zombie_chunk.png", this.scene);
+        explosion.isAnimationSheetEnabled = true; 
+        // Emitter setup
         explosion.emitter = this.mesh.position.clone();
         explosion.minEmitBox = new BABYLON.Vector3(-0.5, -0.5, -0.5);
         explosion.maxEmitBox = new BABYLON.Vector3(0.5, 0.5, 0.5);
-        explosion.color1 = new BABYLON.Color4(0.2, 0.6, 0.2, 1.0);
-        explosion.color2 = new BABYLON.Color4(0.4, 0.8, 0.4, 1.0);
-        explosion.colorDead = new BABYLON.Color4(0, 0, 0, 0.0);
-        explosion.minSize = 0.1;
-        explosion.maxSize = 0.5;
-        explosion.minLifeTime = 0.3;
-        explosion.maxLifeTime = 1.5;
-        explosion.emitRate = 300;
+
+        // Sprite sheet setup
+        explosion.spriteCellWidth = 340;
+        explosion.spriteCellHeight = 269;
+        explosion.startSpriteCellID = 0;
+        explosion.endSpriteCellID = 8; // 3x3 sprite sheet
+        explosion.spriteRandomStartCell = true; // Each particle gets a random chunk image
+
+        // Particle appearance and behavior
+        explosion.color1 = new BABYLON.Color4(1, 1, 1, 1.0); // Use texture's color
+        explosion.color2 = new BABYLON.Color4(1, 1, 1, 1.0);
+        explosion.colorDead = new BABYLON.Color4(1, 1, 1, 0.0); // Fade out
+        explosion.minSize = 0.8;
+        explosion.maxSize = 1.5;
+        explosion.minLifeTime = 0.5;
+        explosion.maxLifeTime = 2.0;
+        explosion.emitRate = 50;
         explosion.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
-        explosion.gravity = new BABYLON.Vector3(0, 1, 0);
-        explosion.direction1 = new BABYLON.Vector3(-1, 1, -1);
-        explosion.direction2 = new BABYLON.Vector3(1, 1, 1);
-        explosion.minAngularSpeed = 0;
+        explosion.gravity = new BABYLON.Vector3(0, -9.81, 0); // Realistic gravity
+
+        // Emission direction
+        explosion.direction1 = new BABYLON.Vector3(-1, 2, -1);
+        explosion.direction2 = new BABYLON.Vector3(1, 4, 1);
+        explosion.minAngularSpeed = -Math.PI;
         explosion.maxAngularSpeed = Math.PI;
         explosion.minEmitPower = 1;
         explosion.maxEmitPower = 3;
         explosion.updateSpeed = 0.01;
-
+        
         // Start the particle system
         explosion.start();
-
-        // Create some "chunks" flying off
-        this.createZombieChunks();
 
         // Stop and dispose after a short time
         setTimeout(() => {
@@ -473,83 +481,7 @@ class Zombie {
             setTimeout(() => {
                 explosion.dispose();
             }, 2000); // Wait for particles to die out
-        }, 300); // Emit for 300ms
-    }
-
-    createZombieChunks() {
-        // Create 5-8 small chunks that fly off
-        const numChunks = 5 + Math.floor(Math.random() * 4);
-
-        for (let i = 0; i < numChunks; i++) {
-            // Create a small box for each chunk
-            const chunk = BABYLON.MeshBuilder.CreateBox("zombieChunk", {size: 0.2 + Math.random() * 0.3}, this.scene);
-            chunk.position = this.mesh.position.clone();
-
-            // Give it the zombie material
-            chunk.material = this.mesh.material.clone("chunkMat");
-
-            // Apply a random impulse to make it fly off
-            const impulse = new BABYLON.Vector3(
-                (Math.random() - 0.5) * 2,
-                Math.random() * 2,
-                (Math.random() - 0.5) * 2
-            );
-
-            // Animate the chunk flying off
-            const frameRate = 30;
-            const animDuration = 1 + Math.random() * 2; // 1-3 seconds
-
-            // Position animation
-            const positionAnimation = new BABYLON.Animation(
-                "chunkPosition",
-                "position",
-                frameRate,
-                BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
-                BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
-            );
-
-            const targetPosition = chunk.position.add(impulse.scale(5));
-
-            const positionKeys = [
-                { frame: 0, value: chunk.position.clone() },
-                { frame: frameRate * animDuration, value: targetPosition }
-            ];
-
-            positionAnimation.setKeys(positionKeys);
-
-            // Rotation animation
-            const rotationAnimation = new BABYLON.Animation(
-                "chunkRotation",
-                "rotation",
-                frameRate,
-                BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
-                BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
-            );
-
-            const targetRotation = new BABYLON.Vector3(
-                Math.random() * Math.PI * 4,
-                Math.random() * Math.PI * 4,
-                Math.random() * Math.PI * 4
-            );
-
-            const rotationKeys = [
-                { frame: 0, value: new BABYLON.Vector3(0, 0, 0) },
-                { frame: frameRate * animDuration, value: targetRotation }
-            ];
-
-            rotationAnimation.setKeys(rotationKeys);
-
-            // Add animations to the chunk
-            chunk.animations = [positionAnimation, rotationAnimation];
-
-            // Begin animation
-            this.scene.beginAnimation(chunk, 0, frameRate * animDuration, false);
-
-            // Dispose the chunk after animation completes
-            setTimeout(() => {
-                chunk.dispose();
-            }, animDuration * 1000 + 100);
-        }
+        }, 200); // Emit for 200ms
     }
 
     dispose() {

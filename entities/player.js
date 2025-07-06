@@ -92,6 +92,15 @@ class Player {
         this.spriteDown.renderingGroupId = 2; // Highest rendering group to ensure visibility
         this.spriteDown.depth = 0.1; // Set depth to ensure it renders on top
 
+        // Create sprite manager for the breath attack
+        this.breathAttackManager = new BABYLON.SpriteManager(
+            "breathAttackManager",
+            "assets/images/breath_cloud.png",
+            20, // Max 20 breath clouds at once
+            { width: 340, height: 269 }, // Each frame's size (340/3, 269/3)
+            this.scene
+        );
+
         // Set up sprite animations
         this.setupSpriteAnimations();
 
@@ -133,7 +142,16 @@ class Player {
     createFartParticleSystem() {
         // Create a particle system for the fart cloud - increased particles for denser cloud
         this.fartParticleSystem = new BABYLON.ParticleSystem("fartParticles", 5000, this.scene);
-        this.fartParticleSystem.particleTexture = new BABYLON.Texture("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", this.scene);
+        this.fartParticleSystem.particleTexture = new BABYLON.Texture("assets/images/fart_cloud.png", this.scene);
+
+        // Enable sprite sheet animation
+        this.fartParticleSystem.isAnimationSheetEnabled = true;
+        this.fartParticleSystem.spriteCellWidth = 340;
+        this.fartParticleSystem.spriteCellHeight = 269;
+        this.fartParticleSystem.startSpriteCellID = 0;
+        this.fartParticleSystem.endSpriteCellID = 8; // 3x3 sheet = 9 frames (0-8)
+        this.fartParticleSystem.spriteCellChangeSpeed = 4; // Animation speed
+        this.fartParticleSystem.spriteCellLoop = true; // Loop the animation
 
         // Set rendering group to ensure it doesn't hide the player sprite
         this.fartParticleSystem.renderingGroupId = 0; // Lower rendering group than player (2) and food (1)
@@ -416,7 +434,7 @@ class Player {
     attack() {
         // Rate limit attacks to prevent too many projectiles
         const now = Date.now();
-        const attackCooldown = 300; // 300ms between attacks
+        const attackCooldown = 500; // Increased cooldown for burst effect
 
         if (now - this._lastAttackTime < attackCooldown) {
             return; // Skip if attacking too frequently
@@ -426,166 +444,80 @@ class Player {
 
         // Create a breath attack projectile
         if (!this.inFartMode) {
-            // Create a breath projectile in the facing direction
             const origin = this.mesh.position.clone();
             origin.y += 0.5; // Adjust to come from the "mouth" level
 
-            // Make sure we have a valid facing direction
             if (!this.facingDirection || this.facingDirection.length() === 0) {
                 this.facingDirection = new BABYLON.Vector3(0, 0, -1); // Default direction
             }
 
-            console.log("Creating breath attack in direction:", this.facingDirection.toString());
+            const numberOfProjectiles = 3; // Create a burst of 3 projectiles
+            const spreadAngle = 0.4; // Radians, ~23 degrees total spread
 
-            try {
-                // Create an invisible sphere as the base for our particle system
-                const projectileMesh = BABYLON.MeshBuilder.CreateSphere("breathProjectile", {
-                    diameter: 1.0
-                }, this.scene);
+            for (let i = 0; i < numberOfProjectiles; i++) {
+                try {
+                    // Create a random angle for spread
+                    const randomAngle = (Math.random() - 0.5) * spreadAngle;
+                    const rotationMatrix = BABYLON.Matrix.RotationY(randomAngle);
+                    const projectileDirection = BABYLON.Vector3.TransformCoordinates(this.facingDirection, rotationMatrix);
 
-                // Make the mesh invisible - we'll only see the particles
-                projectileMesh.isVisible = false;
+                    // Create an invisible mesh for collision
+                    const projectileMesh = BABYLON.MeshBuilder.CreatePlane(`breathProjectile_${now}_${i}`, {size: 1.5}, this.scene);
+                    projectileMesh.isVisible = false;
+                    projectileMesh.position = origin.clone();
+                    projectileMesh.checkCollisions = true;
 
-                // Position it at the player's position
-                projectileMesh.position = origin.clone();
+                    // Create a sprite for the breath attack
+                    const breathSprite = new BABYLON.Sprite(`breathCloud_${now}_${i}`, this.breathAttackManager);
+                    breathSprite.position = projectileMesh.position;
+                    breathSprite.size = 2;
+                    breathSprite.renderingGroupId = 1;
 
-                // Create a chunky, cloudy particle system for the breath attack
-                const particleSystem = new BABYLON.ParticleSystem("breathParticles", 500, this.scene);
+                    // Animate the sprite
+                    breathSprite.playAnimation(0, 8, true, 120, null); // Slightly slower animation
 
-                // Create a cloudy texture for particles
-                particleSystem.particleTexture = new BABYLON.Texture("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", this.scene);
+                    const projectile = {
+                        mesh: projectileMesh,
+                        sprite: breathSprite,
+                        direction: projectileDirection,
+                        speed: 0.6, // Slower projectile speed
+                        distance: 0,
+                        range: this.breathRange,
+                        isDisposed: false,
+                        move: function() {
+                            if (this.isDisposed) return;
+                            this.mesh.position.addInPlace(this.direction.scale(this.speed));
+                            this.sprite.position = this.mesh.position; // Ensure sprite follows mesh
+                            this.distance += this.speed;
 
-                // Set up the emitter to be the projectile mesh
-                particleSystem.emitter = projectileMesh;
+                            // Expand sprite as it travels
+                            const scale = 1 + (this.distance / this.range);
+                            this.sprite.size = 2 * scale;
 
-                // Make particles emit in a cone shape in the direction the player is facing
-                const emitCone = 0.5; // Width of the emission cone
-                particleSystem.minEmitBox = new BABYLON.Vector3(-emitCone, -emitCone, -0.1);
-                particleSystem.maxEmitBox = new BABYLON.Vector3(emitCone, emitCone, 0.1);
-
-                // Set particle colors - light blue/white for breath
-                particleSystem.color1 = new BABYLON.Color4(0.8, 0.7, 0.2, 0.8); // Dull yellow
-                particleSystem.color2 = new BABYLON.Color4(0.5, 0.3, 0.1, 0.8); // Brown
-                particleSystem.colorDead = new BABYLON.Color4(0.5, 0.5, 0.5, 0.0); // Gray, fading to transparent
-
-                // Make particles smaller and varied in size for a less blocky look
-                particleSystem.minSize = 0.1;
-                particleSystem.maxSize = 0.5;
-
-                // Make particles last longer for a more persistent cloud
-                particleSystem.minLifeTime = 0.3;
-                particleSystem.maxLifeTime = 0.8;
-
-                // Emit lots of particles for a dense cloud
-                particleSystem.emitRate = 300;
-
-                // Set particle behavior
-                particleSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD; // Additive blending for glow effect
-
-                // Make particles move in the direction the player is facing
-                const directionVector = this.facingDirection.clone();
-
-                // Add some spread to the particles
-                particleSystem.direction1 = new BABYLON.Vector3(
-                    directionVector.x - 0.5,
-                    directionVector.y - 0.5,
-                    directionVector.z - 0.5
-                );
-                particleSystem.direction2 = new BABYLON.Vector3(
-                    directionVector.x + 0.5,
-                    directionVector.y + 0.5,
-                    directionVector.z + 0.5
-                );
-
-                // Set emission power (speed)
-                particleSystem.minEmitPower = 1.5;
-                particleSystem.maxEmitPower = 3.5;
-
-                // Add some gravity to make particles rise slightly
-                particleSystem.gravity = new BABYLON.Vector3(0, 0.1, 0);
-
-                // Add some angular velocity for swirling effect
-                particleSystem.minAngularSpeed = -2.0;
-                particleSystem.maxAngularSpeed = 2.0;
-
-                // Update faster for smoother animation
-                particleSystem.updateSpeed = 0.01;
-
-                // Start the particle system
-                particleSystem.start();
-
-                // Create a simple projectile object
-                const projectile = {
-                    mesh: projectileMesh,
-                    particleSystem: particleSystem,
-                    direction: this.facingDirection.clone(),
-                    speed: 0.8, // Even faster speed for better visibility
-                    distance: 0,
-                    range: this.breathRange,
-                    isDisposed: false,
-                    move: function() {
-                        if (this.isDisposed) return;
-
-                        // Move the projectile in the direction it's facing
-                        this.mesh.position.addInPlace(this.direction.scale(this.speed));
-                        this.distance += this.speed;
-
-                        // Scale the particle system as it travels to create a spreading cloud effect
-                        const travelProgress = this.distance / this.range;
-
-                        // Calculate spread factor for the cloud as it travels
-                        const spread = 0.5 + travelProgress * 1.5; // Starts at 0.5, grows to 2.0
-
-                        if (this.particleSystem) {
-                            // Update emission box to create spreading effect
-                            this.particleSystem.minEmitBox = new BABYLON.Vector3(-spread, -spread, -spread/2);
-                            this.particleSystem.maxEmitBox = new BABYLON.Vector3(spread, spread, spread/2);
-
-                            // Increase particle size as it travels
-                            this.particleSystem.minSize = 0.3 + travelProgress * 0.7; // 0.3 to 1.0
-                            this.particleSystem.maxSize = 1.2 + travelProgress * 1.3; // 1.2 to 2.5
-
-                            // Slow down particles as they travel
-                            this.particleSystem.minEmitPower = Math.max(0.1, 1.5 - travelProgress * 2.5); // More aggressive slowdown
-                            this.particleSystem.maxEmitPower = Math.max(0.5, 3.5 - travelProgress * 4.5); // More aggressive slowdown
-
-                            // Increase emission rate as it travels for denser cloud
-                            this.particleSystem.emitRate = 300 + travelProgress * 300; // 300 to 600
-
-                            // Increase spread for a more pronounced drag effect
-                            this.particleSystem.minEmitBox = new BABYLON.Vector3(-spread * 1.5, -spread * 1.5, -spread/2);
-                            this.particleSystem.maxEmitBox = new BABYLON.Vector3(spread * 1.5, spread * 1.5, spread/2);
+                            if (this.distance > this.range) {
+                                this.dispose();
+                            }
+                        },
+                        dispose: function() {
+                            if (this.isDisposed) return;
+                            this.isDisposed = true;
+                            if (this.sprite) this.sprite.dispose();
+                            if (this.mesh) this.mesh.dispose();
                         }
+                    };
 
-                        if (this.distance > this.range) {
-                            this.dispose();
-                        }
-                    },
-                    dispose: function() {
-                        if (this.isDisposed) return;
+                    this.activeBreathAttacks.push(projectile);
 
-                        if (this.particleSystem) {
-                            this.particleSystem.stop();
-                            this.particleSystem.dispose();
-                        }
-
-                        if (this.mesh) {
-                            this.mesh.dispose();
-                        }
-
-                        this.isDisposed = true;
-                    }
-                };
-
-                this.activeBreathAttacks.push(projectile);
-                console.log("Breath attack created. Total active:", this.activeBreathAttacks.length);
-
-                // Play breath sound
-                if (this.audioSystem) {
-                    this.audioSystem.playPlayerBreath();
+                } catch (error) {
+                    console.error("Error creating breath attack:", error);
                 }
-            } catch (error) {
-                console.error("Error creating breath attack:", error);
+            }
+
+            console.log(`Breath attack created ${numberOfProjectiles} projectiles. Total active:`, this.activeBreathAttacks.length);
+
+            // Play breath sound
+            if (this.audioSystem) {
+                this.audioSystem.playPlayerBreath();
             }
         } else {
             // In fart mode, we don't need to create projectiles as the fart cloud is always active
@@ -1342,6 +1274,10 @@ class Player {
 
         if (this.spriteManagerDown) {
             this.spriteManagerDown.dispose();
+        }
+
+        if (this.breathAttackManager) {
+            this.breathAttackManager.dispose();
         }
 
         // Dispose the fart range indicator
