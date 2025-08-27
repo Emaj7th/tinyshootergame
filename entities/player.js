@@ -318,7 +318,7 @@ class Player {
                 // Get the car collision box which is the main collision object
                 const carCollision = obstacle.getChildren().find(child => child.name === "carCollision");
                 if (!carCollision) {
-                    console.log("No collision box found for car:", obstacle.name);
+                    // Skip silently - this might be a different type of obstacle
                     continue;
                 }
 
@@ -1024,8 +1024,20 @@ class Player {
             return; // Skip if hit too recently (1 second cooldown)
         }
 
+        // Don't take damage if already at 0 health
+        if (this.health <= 0) {
+            console.log("Player already at 0 health, ignoring damage");
+            return;
+        }
+
         this._lastDamageTime = Date.now();
         this.health--;
+
+        // Ensure health doesn't go below 0 and is always a valid number
+        if (this.health < 0 || !Number.isFinite(this.health)) {
+            this.health = 0;
+        }
+
         console.log(`[HEALTH] Player health reduced to: ${this.health}`);
 
         // Flash the player to indicate damage

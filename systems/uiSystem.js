@@ -1,3 +1,4 @@
+
 import { MAX_BREATH_RANGE, MIN_BREATH_RANGE } from '../utils/constants.js';
 
 class UISystem {
@@ -13,6 +14,9 @@ class UISystem {
 
         // Callback for game over
         this.onGameOver = null;
+
+        // Reference to input system for pausing
+        this.inputSystem = null;
 
         // Create UI container
         this.createUIElements();
@@ -316,8 +320,15 @@ class UISystem {
         this.restartButton.fontSize = 24;
         this.restartButton.top = "100px";
         this.restartButton.onPointerUpObservable.add(() => {
-            // Call the game over callback to return to menu
+            // Prevent multiple clicks
+            if (this.gameOverCallbackTriggered) {
+                console.log("Continue button already clicked, ignoring");
+                return;
+            }
+
+            this.gameOverCallbackTriggered = true;
             console.log("Continue to menu...");
+
             if (typeof this.onGameOver === 'function') {
                 this.onGameOver();
             }
@@ -334,18 +345,9 @@ class UISystem {
         this.updateBreathRangeIndicator(); // Update breath range display
         this.updateHordeModeNotification(); // Update horde mode notification
 
-        // Add detailed logging for game over conditions
-        if (this.player.health <= 0) {
-            console.log("[HEALTH_CHECK] Player health is 0 or less, health value:", this.player.health);
-        }
-
         // Check for game over - only if health is actually 0 or less and game over hasn't been shown yet
         if (this.player.health <= 0 && !this.gameOverShown) {
-            console.log("[GAMEOVER_TRIGGER] Game over condition met:");
-            console.log("[GAMEOVER_TRIGGER] Player health:", this.player.health);
-            console.log("[GAMEOVER_TRIGGER] GameOverShown flag:", this.gameOverShown);
-            console.log("[GAMEOVER_TRIGGER] GameOverCallbackTriggered flag:", this.gameOverCallbackTriggered);
-
+            console.log("[GAMEOVER_TRIGGER] Game over condition met - Player health:", this.player.health);
             // Double-check that we haven't already shown game over
             if (!this.gameOverShown) {
                 console.log("[GAMEOVER_TRIGGER] Calling showGameOver method...");
@@ -512,24 +514,16 @@ class UISystem {
                 this.gameOverContainer.isVisible = true;
                 this.gameOverShown = true;
 
-                // Mark callback as triggered IMMEDIATELY to prevent multiple calls
-                this.gameOverCallbackTriggered = true;
-
-                if (typeof this.onGameOver === 'function') {
-                    console.log(`[GAMEOVER] Setting up callback timer`);
-
-                    // Use a longer delay to ensure UI is fully visible before transitioning
-                    setTimeout(() => {
-                        try {
-                            console.log(`[GAMEOVER] Executing callback`);
-                            this.onGameOver();
-                        } catch (error) {
-                            console.error(`[GAMEOVER] Error in callback:`, error);
-                        }
-                    }, 3000); // Increased from 2000 to 3000ms
-                } else {
-                    console.warn(`[GAMEOVER] No game over callback function defined`);
+                // Pause input system to prevent player movement during game over
+                if (this.inputSystem && typeof this.inputSystem.setPaused === 'function') {
+                    this.inputSystem.setPaused(true);
                 }
+
+                console.log(`[GAMEOVER] Game over screen displayed, waiting for user interaction`);
+
+                // DO NOT automatically trigger callback - let user click Continue button
+                // The callback will be triggered by the Continue button click event
+
             } catch (error) {
                 console.error(`[GAMEOVER] Error in showGameOver:`, error);
             }
@@ -538,9 +532,27 @@ class UISystem {
         }
     }
 
+    // Method to reset UI system state for new game
+    reset() {
+        console.log("[UI_RESET] Resetting UI system state");
+        this.gameOverShown = false;
+        this.gameOverCallbackTriggered = false;
+
+        if (this.gameOverContainer) {
+            this.gameOverContainer.isVisible = false;
+        }
+
+        // Unpause input system if it was paused
+        if (this.inputSystem && typeof this.inputSystem.setPaused === 'function') {
+            this.inputSystem.setPaused(false);
+        }
+    }
+
     dispose() {
         // Clean up resources if needed
+        this.reset(); // Reset state on disposal
     }
 }
 
 export { UISystem };
+

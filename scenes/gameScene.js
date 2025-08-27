@@ -136,6 +136,9 @@ async function createGameScene(scene, canvas) {
     const uiSystem = new UISystem(scene, player);
     console.log("[createGameScene] UISystem initialized.");
 
+    // Set input system reference in UI system for pausing
+    uiSystem.inputSystem = inputSystem;
+
     // Set up timers for spawning
     let lastFoodSpawnTime = Date.now();
     let lastZombieSpawnTime = Date.now();
@@ -354,9 +357,9 @@ function createCarImage(scene, position, imagePath) {
         // CRITICAL: Enable collision detection for the collision box
         collisionBox.checkCollisions = true;
 
-        // Add both the car and its collision box to the obstacles array for collision detection
+        // Add only the car container to the obstacles array for collision detection
+        // The collision detection code will find the collision box as a child
         scene.obstacles.push(car);
-        scene.obstacles.push(collisionBox); // Add the collision box separately to ensure it's checked
 
         console.log(`Created car at position ${position.toString()}`);
 

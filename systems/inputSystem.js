@@ -1,3 +1,4 @@
+
 class InputSystem {
     constructor(scene, player, canvas) {
         this.scene = scene;
@@ -6,7 +7,7 @@ class InputSystem {
         this.keys = {};
         this.mousePosition = new BABYLON.Vector2(0, 0);
         this.isMouseDown = false;
-        // isPaused property removed as it was only related to mouse leaving the game
+        this.isPaused = false; // Initialize isPaused property to prevent undefined behavior
 
         // Set up keyboard input
         scene.onKeyboardObservable.add((kbInfo) => {
@@ -128,7 +129,10 @@ class InputSystem {
     }
 
     update() {
-        // isPaused check removed as it was only related to mouse leaving the game
+        // Skip updates if input system is paused
+        if (this.isPaused) {
+            return;
+        }
 
         const moveDirection = new BABYLON.Vector3(0, 0, 0);
 
@@ -173,7 +177,14 @@ class InputSystem {
         window.removeEventListener("mousedown", this._mouseHandlers.down);
         window.removeEventListener("mouseup", this._mouseHandlers.up);
 
-        // Pause overlay disposal removed
+        // Clear pause state
+        this.isPaused = false;
+    }
+
+    // Method to pause/unpause input system
+    setPaused(paused) {
+        this.isPaused = paused;
+        console.log(`Input system ${paused ? 'paused' : 'unpaused'}`);
     }
 }
 

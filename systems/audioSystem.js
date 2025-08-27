@@ -81,18 +81,14 @@ class AudioSystem {
 
     _playSound(sound, loop = false) {
         if (!this.soundsLoaded || !this.soundsEnabled || !sound) {
-            console.log(`[AudioSystem] Playback skipped for ${sound ? sound.name : 'unknown sound'}: soundsLoaded=${this.soundsLoaded}, soundsEnabled=${this.soundsEnabled}, sound exists=${!!sound}`);
             return;
         }
         try {
-            console.log(`[AudioSystem] Attempting to play ${sound.name}. isPlaying before: ${sound.isPlaying}`);
             // Stop if already playing and not meant to loop
             if (sound.isPlaying && !loop) {
                 sound.stop();
-                console.log(`[AudioSystem] Stopped ${sound.name} before re-playing.`);
             }
             sound.play();
-            console.log(`[AudioSystem] Played ${sound.name}. isPlaying after: ${sound.isPlaying}`);
         } catch (error) {
             console.warn(`[AudioSystem] Error playing sound ${sound.name}:`, error);
         }
@@ -100,13 +96,11 @@ class AudioSystem {
 
     _playRandomSound(soundArray) {
         if (!this.soundsLoaded || !this.soundsEnabled || soundArray.length === 0) {
-            console.log(`[AudioSystem] Random playback skipped: soundsLoaded=${this.soundsLoaded}, soundsEnabled=${this.soundsEnabled}, array empty=${soundArray.length === 0}`);
             return;
         }
         try {
             const randomIndex = Math.floor(Math.random() * soundArray.length);
             const sound = soundArray[randomIndex];
-            console.log(`[AudioSystem] Attempting to play random sound: ${sound.name}`);
             this._playSound(sound);
         } catch (error) {
             console.warn("[AudioSystem] Error playing random sound:", error);
@@ -200,14 +194,9 @@ class AudioSystem {
     resumeAudioContext() {
         if (this.audioEngine && this.audioEngine.audioContext) {
             if (this.audioEngine.audioContext.state === 'suspended') {
-                console.log("[AudioSystem] Resuming audio context...");
-                this.audioEngine.audioContext.resume().then(() => {
-                    console.log("[AudioSystem] Audio context resumed.");
-                }).catch(error => {
+                this.audioEngine.audioContext.resume().catch(error => {
                     console.error("[AudioSystem] Error resuming audio context:", error);
                 });
-            } else {
-                console.log("[AudioSystem] Audio context is already in state: " + this.audioEngine.audioContext.state);
             }
         }
     }

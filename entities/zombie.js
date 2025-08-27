@@ -182,7 +182,7 @@ class Zombie {
                 // Get the car collision box which is the main collision object
                 const carCollision = obstacle.getChildren().find(child => child.name === "carCollision");
                 if (!carCollision) {
-                    console.log("No collision box found for car:", obstacle.name);
+                    // Skip silently - this might be a different type of obstacle
                     continue;
                 }
 

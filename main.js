@@ -1,7 +1,21 @@
+
 import { createGameScene } from './scenes/gameScene.js';
 import { MenuScene } from './scenes/menuScene.js';
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Add global error handler to catch any unhandled errors
+    window.addEventListener('error', function(event) {
+        console.error('[GLOBAL_ERROR] Unhandled JavaScript error:', event.error);
+        console.error('[GLOBAL_ERROR] Error message:', event.message);
+        console.error('[GLOBAL_ERROR] File:', event.filename, 'Line:', event.lineno);
+        // Don't restart automatically - just log the error
+    });
+
+    window.addEventListener('unhandledrejection', function(event) {
+        console.error('[GLOBAL_ERROR] Unhandled promise rejection:', event.reason);
+        // Don't restart automatically - just log the error
+    });
+
     // --- 1. SETUP ---
     const canvas = document.getElementById('renderCanvas');
     const engine = new BABYLON.Engine(canvas, true);
@@ -88,9 +102,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Set up game over handler
+        // Set up game over handler and reset UI state
         if (gameEntities.uiSystem) {
             gameEntities.uiSystem.onGameOver = handleGameOver;
+            gameEntities.uiSystem.reset(); // Reset UI state for new game
         }
 
         // Set up input handlers
@@ -101,16 +116,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log(`[RESTART] handleGameOver called.`);
         try {
             const finalScore = gameEntities?.scene?.zombiesKilled || 0;
-            console.log(`[RESTART] Final score: ${finalScore}`);
-            
             cleanupGame();
-            console.log(`[RESTART] Game cleanup completed.`);
-            
             initMenu();
-            console.log(`[RESTART] Menu initialized.`);
-            
             if (menuScene) {
-                console.log(`[RESTART] Showing game over screen in menu.`);
                 menuScene.showGameOver(finalScore);
             }
         } catch (error) {
@@ -120,18 +128,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function cleanupGame() {
         if (!gameScene && !gameEntities) {
+            console.log("No game state to clean up");
             return; // Nothing to clean up
         }
+
         console.log("Starting game cleanup...");
         try {
             // Remove input handlers to prevent them from affecting the menu
             removeInputHandlers();
 
+            // Remove game loop observer first to stop all game updates
+            if (gameScene && gameEntities && gameEntities.gameLoopObserver) {
+                console.log("Removing game loop observer...");
+                gameScene.onBeforeRenderObservable.remove(gameEntities.gameLoopObserver);
+                gameEntities.gameLoopObserver = null;
+            }
+
             // Dispose all systems and entities created in createGameScene
             if (gameEntities) {
-                Object.values(gameEntities).forEach(entity => {
-                    if (entity && typeof entity.dispose === 'function') {
-                        entity.dispose();
+                console.log("Disposing game entities...");
+                Object.entries(gameEntities).forEach(([key, entity]) => {
+                    try {
+                        if (entity && typeof entity.dispose === 'function') {
+                            console.log(`Disposing ${key}...`);
+                            entity.dispose();
+                        }
+                    } catch (error) {
+                        console.error(`Error disposing ${key}:`, error);
                     }
                 });
                 gameEntities = null;
@@ -139,13 +162,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Dispose the game scene itself
             if (gameScene) {
-                if (gameEntities && gameEntities.gameLoopObserver) {
-                    gameScene.onBeforeRenderObservable.remove(gameEntities.gameLoopObserver);
-                }
+                console.log("Disposing game scene...");
                 gameScene.dispose();
                 gameScene = null;
             }
-            
+
+            // Reset active scene reference
+            activeScene = null;
+
             console.log("Game cleanup completed successfully.");
         } catch (error) {
             console.error("Error during game cleanup:", error);
